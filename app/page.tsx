@@ -37,7 +37,7 @@ export default function Home() {
   const [toast, setToast] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const [active, setActive] = useState<PageKey>("category");
+  const [active, setActive] = useState<PageKey>("dashboard");
   const [collapsed, setCollapsed] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Trash2, Pencil, Wallet, Search } from "lucide-react";
+import { Plus, Trash2, Pencil, Wallet, Search, TrendingUp, TrendingDown, PiggyBank } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Input, Textarea } from "@/components/ui/Input";
@@ -152,6 +152,7 @@ export function TransactionsPage() {
     {
       header: "Reason",
       accessorKey: "reason",
+      className: "w-[40%] min-w-[200px]",
       cell: (t) => {
         const c = categoryMap.get(t.categoryId);
         return (
@@ -168,8 +169,19 @@ export function TransactionsPage() {
       },
     },
     {
+      header: "Amount",
+      accessorKey: "amount",
+      className: "w-[20%] min-w-[120px]",
+      cell: (t) => (
+        <div className={`text-[13px] font-bold font-num ${t.type === "income" ? "text-[var(--color-trading-up)]" : "text-[var(--color-trading-down)]"}`}>
+          {t.type === "income" ? "+" : "-"}₹{t.amount.toLocaleString("en-IN")}
+        </div>
+      ),
+    },
+    {
       header: "Account",
       accessorKey: "accountId",
+      className: "w-[20%] min-w-[120px]",
       cell: (t) => {
         const a = accountMap.get(t.accountId);
         return <span className="text-[12px] text-[var(--color-muted-strong)]">{a ? displayName(a.name) : "Unknown"}</span>;
@@ -178,17 +190,8 @@ export function TransactionsPage() {
     {
       header: "Date",
       accessorKey: "date",
+      className: "w-[15%] min-w-[100px]",
       cell: (t) => <span className="text-[12px] font-num text-[var(--color-muted)]">{t.date}</span>,
-    },
-    {
-      header: "Amount",
-      accessorKey: "amount",
-      className: "text-right",
-      cell: (t) => (
-        <div className={`text-[13px] font-bold font-num ${t.type === "income" ? "text-[var(--color-trading-up)]" : "text-[var(--color-trading-down)]"}`}>
-          {t.type === "income" ? "+" : "-"}₹{t.amount.toLocaleString("en-IN")}
-        </div>
-      ),
     },
     {
       header: "",
@@ -219,6 +222,44 @@ export function TransactionsPage() {
         <Button onClick={openAdd} size="sm" className="w-full sm:w-auto whitespace-nowrap">
           <Plus size={14} /> Add Transaction
         </Button>
+      </div>
+
+      <div className="mt-6 grid grid-cols-2 md:grid-cols-3 gap-4 shrink-0">
+        <div className="flex flex-col p-5 rounded-[12px] bg-[var(--color-surface-card-dark)] border border-[var(--color-hairline-on-dark)] hover:border-[var(--color-primary)]/30 transition shadow-sm">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-[8px] flex items-center justify-center bg-[var(--color-trading-up)]/10 text-[var(--color-trading-up)]">
+              <TrendingUp size={20} />
+            </div>
+            <div className="text-[clamp(10px,1.5vw,12px)] font-bold tracking-wide text-[var(--color-muted)] uppercase truncate" title="Total Income">Total Income</div>
+          </div>
+          <div className="text-[clamp(18px,2.5vw,32px)] font-bold font-num leading-none truncate text-[var(--color-trading-up)]" title={`₹${filteredTxns.filter(t => t.type === 'income').reduce((a, b) => a + b.amount, 0).toLocaleString("en-IN")}`}>
+            ₹{filteredTxns.filter(t => t.type === 'income').reduce((a, b) => a + b.amount, 0).toLocaleString("en-IN")}
+          </div>
+        </div>
+
+        <div className="flex flex-col p-5 rounded-[12px] bg-[var(--color-surface-card-dark)] border border-[var(--color-hairline-on-dark)] hover:border-[var(--color-primary)]/30 transition shadow-sm">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-[8px] flex items-center justify-center bg-[var(--color-trading-down)]/10 text-[var(--color-trading-down)]">
+              <TrendingDown size={20} />
+            </div>
+            <div className="text-[clamp(10px,1.5vw,12px)] font-bold tracking-wide text-[var(--color-muted)] uppercase truncate" title="Total Expenses">Total Expenses</div>
+          </div>
+          <div className="text-[clamp(18px,2.5vw,32px)] font-bold font-num leading-none truncate text-[var(--color-trading-down)]" title={`₹${filteredTxns.filter(t => t.type === 'expense').reduce((a, b) => a + b.amount, 0).toLocaleString("en-IN")}`}>
+            ₹{filteredTxns.filter(t => t.type === 'expense').reduce((a, b) => a + b.amount, 0).toLocaleString("en-IN")}
+          </div>
+        </div>
+
+        <div className="flex flex-col p-5 rounded-[12px] bg-[var(--color-surface-card-dark)] border border-[var(--color-hairline-on-dark)] hover:border-[var(--color-primary)]/30 transition shadow-sm hidden md:flex">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-[8px] flex items-center justify-center bg-[var(--color-primary)]/10 text-[var(--color-primary)]">
+              <PiggyBank size={20} />
+            </div>
+            <div className="text-[clamp(10px,1.5vw,12px)] font-bold tracking-wide text-[var(--color-muted)] uppercase truncate" title="Net Balance">Net Balance</div>
+          </div>
+          <div className="text-[clamp(18px,2.5vw,32px)] font-bold font-num leading-none truncate text-white" style={{ color: "var(--color-on-dark)" }} title={`₹${(filteredTxns.filter(t => t.type === 'income').reduce((a, b) => a + b.amount, 0) - filteredTxns.filter(t => t.type === 'expense').reduce((a, b) => a + b.amount, 0)).toLocaleString("en-IN")}`}>
+            ₹{(filteredTxns.filter(t => t.type === 'income').reduce((a, b) => a + b.amount, 0) - filteredTxns.filter(t => t.type === 'expense').reduce((a, b) => a + b.amount, 0)).toLocaleString("en-IN")}
+          </div>
+        </div>
       </div>
 
       <div className="mt-4 flex-1 min-h-0 rounded-[12px] bg-[var(--color-surface-card-dark)] border border-[var(--color-hairline-on-dark)] overflow-hidden flex flex-col">
