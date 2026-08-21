@@ -1,5 +1,5 @@
 export type ThemeMode = "dark" | "light";
-export type FontSize = "small" | "medium" | "large";
+export type FontSize = "xs" | "s" | "m" | "l" | "xl" | "xxl";
 
 export const DEFAULT_ACCENT = "#fcd535";
 export const ACCENT_PRESETS = [
@@ -37,9 +37,15 @@ export function getStoredAccent(): string {
   return v && /^#[0-9a-fA-F]{6}$/.test(v) ? v.toLowerCase() : DEFAULT_ACCENT;
 }
 export function getStoredFontSize(): FontSize {
-  if (typeof window === "undefined") return "medium";
+  if (typeof window === "undefined") return "m";
   const v = localStorage.getItem(FONT_SIZE_KEY);
-  return (v as FontSize) || "medium";
+  if (["small", "medium", "large"].includes(v as string)) {
+    // migrate legacy
+    if (v === "small") return "s";
+    if (v === "large") return "l";
+    return "m";
+  }
+  return (v as FontSize) || "m";
 }
 export function getStoredFontFamily(): string {
   if (typeof window === "undefined") return "Inter";
@@ -59,9 +65,8 @@ export function applyTheme(mode: ThemeMode, accent: string, fontSize: FontSize =
   // keep disabled as desaturated dark yellowish for now if Binance yellow; else use accent with low alpha fallback
   // Also update selection etc via CSS vars automatically
   
-  root.classList.remove("font-scale-small", "font-scale-large");
-  if (fontSize === "small") root.classList.add("font-scale-small");
-  if (fontSize === "large") root.classList.add("font-scale-large");
+  root.classList.remove("font-scale-small", "font-scale-large", "font-scale-xs", "font-scale-s", "font-scale-m", "font-scale-l", "font-scale-xl", "font-scale-xxl");
+  if (fontSize !== "m") root.classList.add(`font-scale-${fontSize}`);
   root.style.removeProperty("zoom");
 
   // Google Font injection

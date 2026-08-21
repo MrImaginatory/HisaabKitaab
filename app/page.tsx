@@ -5,6 +5,8 @@ import { Clock, FolderOpen, Download, Settings, X } from "lucide-react";
 import { Sidebar, BottomNav, PageKey } from "@/components/layout/Sidebar";
 import { CategoryPage } from "@/components/category/CategoryPage";
 import { AccountsPage } from "@/components/accounts/AccountsPage";
+import { TransactionsPage } from "@/components/transactions/TransactionsPage";
+import { DashboardPage } from "@/components/dashboard/DashboardPage";
 import { SettingsPanel } from "@/components/settings/SettingsPanel";
 import { applyTheme, getStoredAccent, getStoredMode } from "@/lib/theme";
 import { createBlankDBBytes, downloadCurrentDB, openDBFromFile, getDB, setDBFromBytes, reconnectDB } from "@/lib/db";
@@ -207,8 +209,8 @@ export default function Home() {
           <button onClick={() => setDbReady(false)} className="text-[11px] font-bold text-[var(--color-muted-strong)] hover:text-white border border-[var(--color-hairline-on-dark)] rounded-full px-3 py-1 hover:border-[var(--color-primary)]/20 transition">Switch DB</button>
         </div>
         <main className="flex-1 min-h-0 overflow-hidden bg-[var(--color-canvas-dark)] flex flex-col">
-          {active === "dashboard" && <Placeholder title="Dashboard" desc="Overview of balances, income vs expense, and khata health — coming next." />}
-          {active === "transactions" && <Placeholder title="Transactions" desc="All Jama / Udhaar entries with filters — coming next." />}
+          {active === "dashboard" && <DashboardPage />}
+          {active === "transactions" && <TransactionsPage />}
           {active === "accounts" && <AccountsPage />}
           {active === "category" && <CategoryPage />}
         </main>

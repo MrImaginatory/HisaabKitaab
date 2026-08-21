@@ -17,7 +17,7 @@ export function Dialog({
   title,
   description,
   children,
-  maxWidth = "max-w-[760px]",
+  maxWidth = "max-w-[80%]",
   showClose = false,
 }: DialogProps) {
   if (!open) return null;

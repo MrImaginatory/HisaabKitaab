@@ -6,7 +6,7 @@ import { Input, Textarea } from "@/components/ui/Input";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { Dialog } from "@/components/ui/Dialog";
 import { DataTable, ColumnDef } from "@/components/ui/DataTable";
-import { MainAccount, dbGetAccounts, dbAddAccount, dbDeleteAccount, dbUpdateAccount } from "@/lib/db";
+import { MainAccount, ComputedAccount, dbGetAccounts, dbAddAccount, dbDeleteAccount, dbUpdateAccount } from "@/lib/db";
 import { displayName } from "@/lib/stringUtils";
 
 function todayISO() {
@@ -18,7 +18,7 @@ function todayISO() {
 }
 
 export function AccountsPage() {
-  const [accounts, setAccounts] = useState<MainAccount[]>([]);
+  const [accounts, setAccounts] = useState<ComputedAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "card">("list");
@@ -75,7 +75,7 @@ export function AccountsPage() {
     setIsAddOpen(true);
   };
 
-  const openEdit = (a: MainAccount) => {
+  const openEdit = (a: ComputedAccount) => {
     setEditId(a.id);
     setName(displayName(a.name));
     setBalance(String(a.openingBalance));
@@ -98,7 +98,7 @@ export function AccountsPage() {
     return accounts.filter((a) => a.name.toLowerCase().includes(q) || a.description.toLowerCase().includes(q));
   }, [accounts, query]);
 
-  const columns: ColumnDef<MainAccount>[] = useMemo(() => [
+  const columns: ColumnDef<ComputedAccount>[] = useMemo(() => [
     {
       header: "Account",
       accessorKey: "name",
@@ -121,10 +121,10 @@ export function AccountsPage() {
     },
     {
       header: "Balance",
-      accessorKey: "openingBalance",
+      accessorKey: "currentBalance",
       className: "text-right",
       cell: (a) => (
-        <div className="text-[13px] font-bold font-num text-white">₹{Number(a.openingBalance).toLocaleString("en-IN")}</div>
+        <div className="text-[13px] font-bold font-num text-white">₹{Number(a.currentBalance).toLocaleString("en-IN")}</div>
       ),
     },
     {
@@ -144,10 +144,10 @@ export function AccountsPage() {
     }
   ], []);
 
-  const totalOpening = useMemo(() => accounts.reduce((s, a) => s + (Number(a.openingBalance) || 0), 0), [accounts]);
+  const totalBalance = useMemo(() => accounts.reduce((s, a) => s + (Number(a.currentBalance) || 0), 0), [accounts]);
 
   return (
-    <div className="h-full min-h-0 flex flex-col max-w-[980px] w-full mx-auto px-6 py-6">
+    <div className="h-full min-h-0 flex flex-col max-w-[80%] w-full mx-auto px-6 py-6">
       <div className="shrink-0 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
           <h1 className="text-[20px] font-bold tracking-tight text-white">Accounts</h1>
@@ -157,7 +157,7 @@ export function AccountsPage() {
         </div>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between shrink-0 mb-4 gap-3">
           <span className="px-3 py-1.5 rounded-full bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] text-[11px] font-bold text-[var(--color-muted-strong)] w-fit self-start sm:self-auto">
-            Total opening: <span className="font-num text-white">₹{totalOpening.toLocaleString("en-IN")}</span>
+            Total balance: <span className="font-num text-white">₹{totalBalance.toLocaleString("en-IN")}</span>
           </span>
           <Button onClick={openAdd} size="sm" className="w-full sm:w-auto whitespace-nowrap">
             <Plus size={14} /> Add
@@ -228,8 +228,8 @@ export function AccountsPage() {
                   </div>
                   <div className="mt-auto pt-3 border-t border-[var(--color-hairline-on-dark)] flex items-end justify-between">
                     <div>
-                      <div className="text-[11px] font-medium text-[var(--color-muted)]">Opening Balance</div>
-                      <div className="text-[14px] font-bold font-num text-white mt-0.5">₹{Number(a.openingBalance).toLocaleString("en-IN")}</div>
+                      <div className="text-[11px] font-medium text-[var(--color-muted)]">Current Balance</div>
+                      <div className="text-[14px] font-bold font-num text-white mt-0.5">₹{Number(a.currentBalance).toLocaleString("en-IN")}</div>
                     </div>
                     <div className="text-[11px] font-num text-[var(--color-muted-strong)]">{a.date}</div>
                   </div>

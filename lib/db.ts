@@ -130,7 +130,19 @@ function ensureSchema(database: any) {
   try {
     database.run(`UPDATE accounts SET name = lower(name), nameKey = lower(nameKey), description = lower(description) WHERE lower(name) != name OR lower(nameKey) != nameKey OR lower(description) != description`);
   } catch {}
-  // CREATE TABLE IF NOT EXISTS transactions (...) — next
+  database.run(`
+    CREATE TABLE IF NOT EXISTS transactions (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL CHECK(type IN ('income','expense')),
+      amount REAL NOT NULL,
+      accountId TEXT NOT NULL,
+      categoryId TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      notes TEXT NOT NULL,
+      date TEXT NOT NULL,
+      createdAt INTEGER NOT NULL
+    );
+  `);
 }
 
 export async function setDBFromBytes(bytes: Uint8Array): Promise<void> {
@@ -358,16 +370,25 @@ export interface MainAccount {
   createdAt: number;
 }
 
-export async function dbGetAccounts(): Promise<MainAccount[]> {
+export type ComputedAccount = MainAccount & { currentBalance: number };
+
+export async function dbGetAccounts(): Promise<ComputedAccount[]> {
   const d = await getDB();
-  const res = d.exec("SELECT id, name, nameKey, openingBalance, description, date, createdAt FROM accounts ORDER BY createdAt DESC");
+  const res = d.exec(`
+    SELECT a.id, a.name, a.nameKey, a.openingBalance, a.description, a.date, a.createdAt,
+      (a.openingBalance + 
+       COALESCE((SELECT SUM(amount) FROM transactions WHERE accountId = a.id AND type = 'income'), 0) - 
+       COALESCE((SELECT SUM(amount) FROM transactions WHERE accountId = a.id AND type = 'expense'), 0)
+      ) as currentBalance
+    FROM accounts a ORDER BY a.createdAt DESC
+  `);
   if (!res.length) return [];
   const cols = res[0].columns as string[];
   const vals = res[0].values as any[][];
   return vals.map((row) => {
     const o: any = {};
     cols.forEach((c, i) => (o[c] = row[i]));
-    return o as MainAccount;
+    return o as ComputedAccount;
   });
 }
 
@@ -440,5 +461,87 @@ export async function dbUpdateAccount(id: string, a: Omit<MainAccount, "id" | "n
   } catch (e: any) {
     const msg = e?.message ?? String(e);
     return { ok: false, error: msg };
+  }
+}
+
+// ---------- Transactions helpers ----------
+export interface Transaction {
+  id: string;
+  type: CategoryType; // "income" or "expense"
+  amount: number;
+  accountId: string;
+  categoryId: string;
+  reason: string;
+  notes: string;
+  date: string;
+  createdAt: number;
+}
+
+export async function dbGetTransactions(): Promise<Transaction[]> {
+  const d = await getDB();
+  const res = d.exec("SELECT id, type, amount, accountId, categoryId, reason, notes, date, createdAt FROM transactions ORDER BY date DESC, createdAt DESC");
+  if (!res.length) return [];
+  const cols = res[0].columns as string[];
+  const vals = res[0].values as any[][];
+  return vals.map((row) => {
+    const o: any = {};
+    cols.forEach((c, i) => (o[c] = row[i]));
+    return o as Transaction;
+  });
+}
+
+export async function dbAddTransaction(t: Omit<Transaction, "id" | "createdAt">): Promise<{ ok: boolean; error?: string; transaction?: Transaction }> {
+  if (!Number.isFinite(t.amount) || t.amount <= 0) return { ok: false, error: "Amount must be a positive number" };
+  if (!t.accountId) return { ok: false, error: "Account is required" };
+  if (!t.categoryId) return { ok: false, error: "Category is required" };
+  if (!t.reason.trim()) return { ok: false, error: "Reason is required" };
+  if (!t.date || !/^\d{4}-\d{2}-\d{2}$/.test(t.date)) return { ok: false, error: "Date is required (YYYY-MM-DD)" };
+
+  const trans: Transaction = {
+    id: `txn_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    type: t.type,
+    amount: Number(t.amount),
+    accountId: t.accountId,
+    categoryId: t.categoryId,
+    reason: t.reason.trim().slice(0, 50),
+    notes: t.notes.trim().slice(0, 1000),
+    date: t.date,
+    createdAt: Date.now(),
+  };
+
+  const d = await getDB();
+  try {
+    d.run("INSERT INTO transactions (id, type, amount, accountId, categoryId, reason, notes, date, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+      trans.id, trans.type, trans.amount, trans.accountId, trans.categoryId, trans.reason, trans.notes, trans.date, trans.createdAt
+    ]);
+    await saveDB();
+    return { ok: true, transaction: trans };
+  } catch (e: any) {
+    return { ok: false, error: e?.message ?? String(e) };
+  }
+}
+
+export async function dbDeleteTransaction(id: string): Promise<void> {
+  const d = await getDB();
+  d.run("DELETE FROM transactions WHERE id = ?", [id]);
+  await saveDB();
+}
+
+export async function dbUpdateTransaction(id: string, t: Omit<Transaction, "id" | "createdAt">): Promise<{ ok: boolean; error?: string; transaction?: Transaction }> {
+  if (!Number.isFinite(t.amount) || t.amount <= 0) return { ok: false, error: "Amount must be a positive number" };
+  if (!t.accountId) return { ok: false, error: "Account is required" };
+  if (!t.categoryId) return { ok: false, error: "Category is required" };
+  if (!t.reason.trim()) return { ok: false, error: "Reason is required" };
+  if (!t.date || !/^\d{4}-\d{2}-\d{2}$/.test(t.date)) return { ok: false, error: "Date is required (YYYY-MM-DD)" };
+
+  const d = await getDB();
+  try {
+    d.run("UPDATE transactions SET type = ?, amount = ?, accountId = ?, categoryId = ?, reason = ?, notes = ?, date = ? WHERE id = ?", [
+      t.type, t.amount, t.accountId, t.categoryId, t.reason.trim().slice(0, 50), t.notes.trim().slice(0, 1000), t.date, id
+    ]);
+    await saveDB();
+    return { ok: true, transaction: { id, type: t.type, amount: t.amount, accountId: t.accountId, categoryId: t.categoryId, reason: t.reason.trim().slice(0, 50), notes: t.notes.trim().slice(0, 1000), date: t.date, createdAt: 0 } };
+  } catch (e: any) {
+    return { ok: false, error: e?.message ?? String(e) };
   }
 }
