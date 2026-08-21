@@ -77,7 +77,7 @@ export function SettingsPanel() {
   };
 
   return (
-    <div className="max-w-[80%] mx-auto px-6 py-6">
+    <div className="w-full xl:max-w-[80%] max-w-[1000px] mx-auto px-6 py-6">
       <h1 className="text-[20px] font-bold tracking-tight text-white">Settings</h1>
       <p className="text-[12px] leading-relaxed text-[var(--color-muted-strong)] mt-1 max-w-[60ch]">Manage appearance. Your choice is saved locally and never leaves the device. Binance-dark precision with your accent.</p>
 

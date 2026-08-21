@@ -208,7 +208,7 @@ export function TransactionsPage() {
   ], [accountMap, categoryMap]);
 
   return (
-    <div className="h-full min-h-0 flex flex-col max-w-[80%] w-full mx-auto px-6 py-6">
+    <div className="h-full min-h-0 flex flex-col w-full xl:max-w-[80%] max-w-[1000px] mx-auto px-6 py-6">
       <div className="shrink-0 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
           <h1 className="text-[20px] font-bold tracking-tight text-white">Transactions</h1>
