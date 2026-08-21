@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Upload, Download, Trash2, AlertTriangle, Check, X, LayoutList, LayoutGrid, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
+import { DataTable, ColumnDef } from "@/components/ui/DataTable";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Category, CategoryType, ParsedCsvRow, analyzeForPreview, parseCategoryCsv, sampleCsv } from "@/lib/categoryStore";
@@ -150,6 +151,46 @@ export function CategoryPage() {
     return categories.filter((c) => c.name.toLowerCase().includes(q) || c.type.includes(q));
   }, [categories, query]);
 
+  const columns: ColumnDef<Category>[] = useMemo(() => [
+    {
+      header: "Category",
+      accessorKey: "name",
+      cell: (c) => (
+        <div className="flex items-center gap-3">
+          <span className="w-3 h-3 rounded-full shrink-0 border border-white/15" style={{ background: c.color }} />
+          <span className="text-[13px] font-semibold text-white truncate">{displayName(c.name)}</span>
+        </div>
+      ),
+    },
+    {
+      header: "Type",
+      accessorKey: "type",
+      cell: (c) => (
+        <span className={`text-[11px] font-bold px-2 py-1 rounded-full border shrink-0 ${c.type === "income" ? "bg-[var(--color-trading-up)]/12 text-[var(--color-trading-up)] border-[var(--color-trading-up)]/20" : "bg-[var(--color-trading-down)]/12 text-[var(--color-trading-down)] border-[var(--color-trading-down)]/20"}`}>{displayName(c.type)}</span>
+      ),
+    },
+    {
+      header: "Color",
+      accessorKey: "color",
+      cell: (c) => <span className="font-num text-[11px] text-[var(--color-muted)]">{c.color}</span>,
+    },
+    {
+      header: "",
+      sortable: false,
+      className: "w-[80px]",
+      cell: (c) => (
+        <div className="flex items-center justify-end gap-1">
+          <button onClick={(e) => { e.stopPropagation(); openEdit(c); }} className="w-7 h-7 rounded-[6px] bg-transparent border border-transparent hover:bg-[#fcd535]/10 hover:border-[#fcd535]/20 text-[var(--color-muted)] hover:text-[#fcd535] flex items-center justify-center transition shrink-0" aria-label="Edit">
+            <Pencil size={14} />
+          </button>
+          <button onClick={(e) => { e.stopPropagation(); handleDelete(c.id, c.name); }} className="w-7 h-7 rounded-[6px] bg-transparent border border-transparent hover:bg-[var(--color-trading-down)]/10 hover:border-[var(--color-trading-down)]/20 text-[var(--color-muted)] hover:text-[var(--color-trading-down)] flex items-center justify-center transition shrink-0" aria-label="Delete">
+            <Trash2 size={14} />
+          </button>
+        </div>
+      ),
+    }
+  ], []);
+
   const downloadSample = () => {
     const blob = new Blob([sampleCsv()], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -162,22 +203,27 @@ export function CategoryPage() {
 
   return (
     <div className="h-full min-h-0 flex flex-col max-w-[980px] w-full mx-auto px-6 py-6">
-      <div className="shrink-0 flex items-start justify-between gap-4">
+      <div className="shrink-0 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
           <h1 className="text-[20px] font-bold tracking-tight text-white">Category</h1>
-          <p className="text-[12px] leading-relaxed text-[var(--color-muted-strong)] mt-1 max-w-[60ch]">Organize expenses and income. Create categories manually or bulk-import via CSV. Duplicate names are always skipped.</p>
+          <p className="text-[12px] leading-relaxed text-[var(--color-muted-strong)] mt-1 max-w-[60ch]">
+            Organize expenses and income. Create categories manually or bulk-import via CSV. Duplicate names are always skipped.
+          </p>
         </div>
-        <div className="hidden sm:flex items-center gap-2">
-          <input ref={csvInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleCsvPick} />
-          <Button variant="secondary" size="sm" onClick={() => csvInputRef.current?.click()}>
-            <Upload size={14} /> Import CSV
-          </Button>
-          <Button variant="secondary" size="sm" onClick={downloadSample}>
-            <Download size={14} /> Sample CSV
-          </Button>
-          <Button size="sm" onClick={openAdd}>
-            <Plus size={14} /> Add Category
-          </Button>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between shrink-0 mb-4 gap-3">
+          <span className="text-[11px] font-bold text-[var(--color-muted)] self-start sm:self-auto hidden sm:inline">Manage categories for your transactions.</span>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <input ref={csvInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleCsvPick} />
+            <Button variant="secondary" size="sm" className="flex-1 sm:flex-none justify-center whitespace-nowrap" onClick={() => csvInputRef.current?.click()}>
+              <Upload size={14} /> Import
+            </Button>
+            <Button variant="secondary" size="sm" className="flex-1 sm:flex-none justify-center whitespace-nowrap" onClick={downloadSample}>
+              <Download size={14} /> Sample
+            </Button>
+            <Button size="sm" className="flex-1 sm:flex-none justify-center whitespace-nowrap" onClick={openAdd}>
+              <Plus size={14} /> Add
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -204,15 +250,17 @@ export function CategoryPage() {
       </Dialog>
 
       <div className="mt-4 flex-1 min-h-0 rounded-[12px] bg-[var(--color-surface-card-dark)] border border-[var(--color-hairline-on-dark)] overflow-hidden flex flex-col">
-        <div className="shrink-0 px-5 py-3 flex items-center gap-3 border-b border-[var(--color-hairline-on-dark)]">
-          <h3 className="text-[13px] font-bold text-white">All categories</h3>
-          <span className="text-[11px] px-2 py-0.5 rounded-full bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] text-[var(--color-muted-strong)] font-bold">{filteredCats.length}</span>
-          <div className="ml-auto flex items-center gap-2">
-            <div className="flex bg-[var(--color-surface-elevated-dark)] p-0.5 rounded-[8px] border border-[var(--color-hairline-on-dark)]">
+        <div className="p-4 border-b border-[var(--color-hairline-on-dark)] flex flex-col sm:flex-row sm:items-center gap-3 bg-[var(--color-canvas-dark)] shrink-0">
+          <div className="flex items-center gap-3">
+            <h3 className="text-[13px] font-bold text-white">All categories</h3>
+            <span className="text-[11px] px-2 py-0.5 rounded-full bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] text-[var(--color-muted-strong)] font-bold">{filteredCats.length}</span>
+          </div>
+          <div className="flex items-center gap-2 sm:ml-auto w-full sm:w-auto">
+            <div className="flex bg-[var(--color-surface-elevated-dark)] p-0.5 rounded-[8px] border border-[var(--color-hairline-on-dark)] shrink-0">
               <button onClick={() => setViewMode("list")} className={`p-1.5 rounded-[6px] transition ${viewMode === "list" ? "bg-[var(--color-surface-card-dark)] text-white shadow-sm" : "text-[var(--color-muted)] hover:text-white"}`}><LayoutList size={14}/></button>
               <button onClick={() => setViewMode("card")} className={`p-1.5 rounded-[6px] transition ${viewMode === "card" ? "bg-[var(--color-surface-card-dark)] text-white shadow-sm" : "text-[var(--color-muted)] hover:text-white"}`}><LayoutGrid size={14}/></button>
             </div>
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Filter by name or type…" className="h-8 w-[220px] rounded-[8px] bg-[var(--color-canvas-dark)] border border-[var(--color-hairline-on-dark)] text-white placeholder:text-[var(--color-muted)] text-[12px] px-3 focus:outline-none focus:border-[var(--color-primary)]/40" />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Filter by name or type…" className="h-8 w-full sm:w-[220px] rounded-[8px] bg-[var(--color-canvas-dark)] border border-[var(--color-hairline-on-dark)] text-white placeholder:text-[var(--color-muted)] text-[12px] px-3 focus:outline-none focus:border-[var(--color-primary)]/40" />
           </div>
         </div>
         <div className="flex-1 min-h-0 overflow-auto">
@@ -224,24 +272,7 @@ export function CategoryPage() {
               <div className="text-[11px] text-[var(--color-muted)] mt-1">Add one above or import a CSV. Duplicates are auto-skipped.</div>
             </div>
           ) : viewMode === "list" ? (
-            <div className="divide-y divide-[var(--color-hairline-on-dark)]">
-              {filteredCats.map((c) => (
-                <div key={c.id} className="flex items-center gap-3 px-5 py-3 hover:bg-[#11161c]/60 transition">
-                  <span className="w-3 h-3 rounded-full shrink-0 border border-white/15" style={{ background: c.color }} />
-                  <span className="text-[13px] font-semibold text-white truncate min-w-0 flex-1">{displayName(c.name)}</span>
-                  <span className={`text-[11px] font-bold px-2 py-1 rounded-full border shrink-0 ${c.type === "income" ? "bg-[var(--color-trading-up)]/12 text-[var(--color-trading-up)] border-[var(--color-trading-up)]/20" : "bg-[var(--color-trading-down)]/12 text-[var(--color-trading-down)] border-[var(--color-trading-down)]/20"}`}>{displayName(c.type)}</span>
-                  <span className="hidden sm:inline font-num text-[11px] text-[var(--color-muted)] shrink-0">{c.color}</span>
-                  <div className="flex items-center gap-1 shrink-0 ml-2">
-                    <button onClick={() => openEdit(c)} className="w-7 h-7 rounded-[6px] bg-transparent border border-transparent hover:bg-[#fcd535]/10 hover:border-[#fcd535]/20 text-[var(--color-muted)] hover:text-[#fcd535] flex items-center justify-center transition shrink-0" aria-label="Edit">
-                      <Pencil size={14} />
-                    </button>
-                    <button onClick={() => handleDelete(c.id, c.name)} className="w-7 h-7 rounded-[6px] bg-transparent border border-transparent hover:bg-[var(--color-trading-down)]/10 hover:border-[var(--color-trading-down)]/20 text-[var(--color-muted)] hover:text-[var(--color-trading-down)] flex items-center justify-center transition shrink-0" aria-label="Delete">
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <DataTable columns={columns} data={filteredCats} keyExtractor={(c) => c.id} />
           ) : (
             <div className="p-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
               {filteredCats.map((c) => (

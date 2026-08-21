@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { Dialog } from "@/components/ui/Dialog";
+import { DataTable, ColumnDef } from "@/components/ui/DataTable";
 import { MainAccount, dbGetAccounts, dbAddAccount, dbDeleteAccount, dbUpdateAccount } from "@/lib/db";
 import { displayName } from "@/lib/stringUtils";
 
@@ -97,23 +98,69 @@ export function AccountsPage() {
     return accounts.filter((a) => a.name.toLowerCase().includes(q) || a.description.toLowerCase().includes(q));
   }, [accounts, query]);
 
+  const columns: ColumnDef<MainAccount>[] = useMemo(() => [
+    {
+      header: "Account",
+      accessorKey: "name",
+      cell: (a) => (
+        <div className="flex items-center gap-3">
+          <span className="w-9 h-9 rounded-[8px] bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] flex items-center justify-center text-white shrink-0">
+            <Wallet size={14} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="text-[13px] font-semibold text-white truncate">{displayName(a.name)}</div>
+            <div className="text-[11px] text-[var(--color-muted)] truncate">{a.description ? displayName(a.description) : "—"}</div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      header: "Date",
+      accessorKey: "date",
+      cell: (a) => <span className="text-[12px] font-num text-[var(--color-muted)]">{a.date}</span>,
+    },
+    {
+      header: "Balance",
+      accessorKey: "openingBalance",
+      className: "text-right",
+      cell: (a) => (
+        <div className="text-[13px] font-bold font-num text-white">₹{Number(a.openingBalance).toLocaleString("en-IN")}</div>
+      ),
+    },
+    {
+      header: "",
+      sortable: false,
+      className: "w-[80px]",
+      cell: (a) => (
+        <div className="flex items-center justify-end gap-1">
+          <button onClick={(e) => { e.stopPropagation(); openEdit(a); }} className="w-7 h-7 rounded-[6px] bg-transparent border border-transparent hover:bg-[#fcd535]/10 hover:border-[#fcd535]/20 text-[var(--color-muted)] hover:text-[#fcd535] flex items-center justify-center transition shrink-0" aria-label="Edit">
+            <Pencil size={14} />
+          </button>
+          <button onClick={(e) => { e.stopPropagation(); handleDelete(a.id, a.name); }} className="w-7 h-7 rounded-[6px] bg-transparent border border-transparent hover:bg-[var(--color-trading-down)]/10 hover:border-[var(--color-trading-down)]/20 text-[var(--color-muted)] hover:text-[var(--color-trading-down)] flex items-center justify-center transition shrink-0" aria-label="Delete">
+            <Trash2 size={14} />
+          </button>
+        </div>
+      ),
+    }
+  ], []);
+
   const totalOpening = useMemo(() => accounts.reduce((s, a) => s + (Number(a.openingBalance) || 0), 0), [accounts]);
 
   return (
     <div className="h-full min-h-0 flex flex-col max-w-[980px] w-full mx-auto px-6 py-6">
-      <div className="shrink-0 flex items-start justify-between gap-4">
+      <div className="shrink-0 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
           <h1 className="text-[20px] font-bold tracking-tight text-white">Accounts</h1>
           <p className="text-[12px] leading-relaxed text-[var(--color-muted-strong)] mt-1 max-w-[60ch]">
             Main accounts are like bank accounts — add multiple. Opening balance + date are stored in SQLite locally.
           </p>
         </div>
-        <div className="hidden sm:flex items-center gap-2">
-          <span className="px-3 py-1.5 rounded-full bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] text-[11px] font-bold text-[var(--color-muted-strong)]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between shrink-0 mb-4 gap-3">
+          <span className="px-3 py-1.5 rounded-full bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] text-[11px] font-bold text-[var(--color-muted-strong)] w-fit self-start sm:self-auto">
             Total opening: <span className="font-num text-white">₹{totalOpening.toLocaleString("en-IN")}</span>
           </span>
-          <Button onClick={openAdd} size="sm">
-            <Plus size={14} /> Add Account
+          <Button onClick={openAdd} size="sm" className="w-full sm:w-auto whitespace-nowrap">
+            <Plus size={14} /> Add
           </Button>
         </div>
       </div>
@@ -134,15 +181,17 @@ export function AccountsPage() {
 
       {/* List — scrollable */}
       <div className="mt-4 flex-1 min-h-0 rounded-[12px] bg-[var(--color-surface-card-dark)] border border-[var(--color-hairline-on-dark)] overflow-hidden flex flex-col">
-        <div className="shrink-0 px-5 py-3 flex items-center gap-3 border-b border-[var(--color-hairline-on-dark)]">
-          <h3 className="text-[13px] font-bold text-white flex items-center gap-2"><Wallet size={14} className="text-[var(--color-muted)]" /> All accounts</h3>
-          <span className="text-[11px] px-2 py-0.5 rounded-full bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] text-[var(--color-muted-strong)] font-bold">{filtered.length}</span>
-          <div className="ml-auto flex items-center gap-2">
-            <div className="flex bg-[var(--color-surface-elevated-dark)] p-0.5 rounded-[8px] border border-[var(--color-hairline-on-dark)]">
+        <div className="p-4 border-b border-[var(--color-hairline-on-dark)] flex flex-col sm:flex-row sm:items-center gap-3 bg-[var(--color-canvas-dark)] shrink-0">
+          <div className="flex items-center gap-3">
+            <h3 className="text-[13px] font-bold text-white flex items-center gap-2"><Wallet size={14} className="text-[var(--color-muted)]" /> All accounts</h3>
+            <span className="text-[11px] px-2 py-0.5 rounded-full bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] text-[var(--color-muted-strong)] font-bold">{filtered.length}</span>
+          </div>
+          <div className="flex items-center gap-2 sm:ml-auto w-full sm:w-auto">
+            <div className="flex bg-[var(--color-surface-elevated-dark)] p-0.5 rounded-[8px] border border-[var(--color-hairline-on-dark)] shrink-0">
               <button onClick={() => setViewMode("list")} className={`p-1.5 rounded-[6px] transition ${viewMode === "list" ? "bg-[var(--color-surface-card-dark)] text-white shadow-sm" : "text-[var(--color-muted)] hover:text-white"}`}><LayoutList size={14}/></button>
               <button onClick={() => setViewMode("card")} className={`p-1.5 rounded-[6px] transition ${viewMode === "card" ? "bg-[var(--color-surface-card-dark)] text-white shadow-sm" : "text-[var(--color-muted)] hover:text-white"}`}><LayoutGrid size={14}/></button>
             </div>
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Filter by name…" className="h-8 w-[220px] rounded-[8px] bg-[var(--color-canvas-dark)] border border-[var(--color-hairline-on-dark)] text-white placeholder:text-[var(--color-muted)] text-[12px] px-3 focus:outline-none focus:border-[var(--color-primary)]/40" />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Filter by name…" className="h-8 w-full sm:w-[220px] rounded-[8px] bg-[var(--color-canvas-dark)] border border-[var(--color-hairline-on-dark)] text-white placeholder:text-[var(--color-muted)] text-[12px] px-3 focus:outline-none focus:border-[var(--color-primary)]/40" />
           </div>
         </div>
 
@@ -155,31 +204,7 @@ export function AccountsPage() {
               <div className="text-[11px] text-[var(--color-muted)] mt-1">Add your first main account above — e.g. bank, cash, UPI.</div>
             </div>
           ) : viewMode === "list" ? (
-            <div className="divide-y divide-[var(--color-hairline-on-dark)]">
-              {filtered.map((a) => (
-                <div key={a.id} className="flex items-center gap-3 px-5 py-3 hover:bg-[#11161c]/60 transition">
-                  <span className="w-9 h-9 rounded-[8px] bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] flex items-center justify-center text-white shrink-0">
-                    <Wallet size={14} />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[13px] font-semibold text-white truncate">{displayName(a.name)}</div>
-                    <div className="text-[11px] text-[var(--color-muted)] truncate">{a.description ? displayName(a.description) : "—"} · <span className="font-num">{a.date}</span></div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <div className="text-[13px] font-bold font-num text-white">₹{Number(a.openingBalance).toLocaleString("en-IN")}</div>
-                    <div className="text-[11px] text-[var(--color-muted)]">Opening</div>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button onClick={() => openEdit(a)} className="w-7 h-7 rounded-[6px] bg-transparent border border-transparent hover:bg-[#fcd535]/10 hover:border-[#fcd535]/20 text-[var(--color-muted)] hover:text-[#fcd535] flex items-center justify-center transition shrink-0" aria-label="Edit">
-                      <Pencil size={14} />
-                    </button>
-                    <button onClick={() => handleDelete(a.id, a.name)} className="w-7 h-7 rounded-[6px] bg-transparent border border-transparent hover:bg-[var(--color-trading-down)]/10 hover:border-[var(--color-trading-down)]/20 text-[var(--color-muted)] hover:text-[var(--color-trading-down)] flex items-center justify-center transition shrink-0" aria-label="Delete">
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <DataTable columns={columns} data={filtered} keyExtractor={(a) => a.id} />
           ) : (
             <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {filtered.map((a) => (

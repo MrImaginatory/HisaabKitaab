@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Clock, FolderOpen, Download, Settings, X } from "lucide-react";
-import { Sidebar, PageKey } from "@/components/layout/Sidebar";
+import { Sidebar, BottomNav, PageKey } from "@/components/layout/Sidebar";
 import { CategoryPage } from "@/components/category/CategoryPage";
 import { AccountsPage } from "@/components/accounts/AccountsPage";
 import { SettingsPanel } from "@/components/settings/SettingsPanel";
@@ -198,7 +198,7 @@ export default function Home() {
   return (
     <div className="h-screen max-h-[100vh] overflow-hidden bg-[var(--color-canvas-dark)] text-[var(--color-body)] flex">
       <Sidebar active={active} onChange={setActive} collapsed={collapsed} onToggle={() => setCollapsed((v) => !v)} />
-      <div className="flex-1 min-w-0 flex flex-col h-screen max-h-[100vh] overflow-hidden">
+      <div className="flex-1 min-w-0 flex flex-col h-screen max-h-[100vh] overflow-hidden pb-[64px] sm:pb-0">
         <div className="h-[44px] shrink-0 bg-[var(--color-surface-card-dark)] border-b border-[var(--color-hairline-on-dark)] flex items-center justify-between px-4">
           <span className="text-[11px] font-bold tracking-wide text-[var(--color-muted)] uppercase">
             {active === "dashboard" ? "Dashboard" : active === "transactions" ? "Transactions" : active === "accounts" ? "Accounts" : "Category"}
@@ -217,10 +217,12 @@ export default function Home() {
       <button
         onClick={() => setSettingsOpen(true)}
         aria-label="Open settings"
-        className="fixed bottom-5 right-5 z-40 w-12 h-12 rounded-full bg-[var(--color-primary)] text-[var(--color-on-primary)] shadow-[0_8px_24px_rgba(0,0,0,0.35)] border border-black/10 flex items-center justify-center hover:bg-[var(--color-primary-active)] active:scale-95 transition"
+        className="fixed bottom-[84px] sm:bottom-5 right-5 z-40 w-12 h-12 rounded-full bg-[var(--color-primary)] text-[var(--color-on-primary)] shadow-[0_8px_24px_rgba(0,0,0,0.35)] border border-black/10 flex items-center justify-center hover:bg-[var(--color-primary-active)] active:scale-95 transition"
       >
         <Settings size={20} />
       </button>
+
+      <BottomNav active={active} onChange={setActive} />
 
       {settingsOpen && (
         <div className="fixed inset-0 z-50 flex justify-end">

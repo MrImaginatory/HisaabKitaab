@@ -1,16 +1,33 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Moon, Sun, Palette, Check, RotateCcw } from "lucide-react";
+import { Moon, Sun, Palette, Check, RotateCcw, Type } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { ACCENT_PRESETS, DEFAULT_ACCENT, ThemeMode, applyTheme, getStoredAccent, getStoredMode, setStoredAccent, setStoredMode } from "@/lib/theme";
+import { Select } from "@/components/ui/Select";
+import { ACCENT_PRESETS, DEFAULT_ACCENT, ThemeMode, FontSize, applyTheme, getStoredAccent, getStoredMode, getStoredFontSize, getStoredFontFamily, setStoredAccent, setStoredMode, setStoredFontSize, setStoredFontFamily } from "@/lib/theme";
+
+const FONT_OPTIONS = [
+  { value: "Inter", label: "Inter" },
+  { value: "Poppins", label: "Poppins" },
+  { value: "Raleway", label: "Raleway" },
+  { value: "Noto Sans", label: "Noto Sans" },
+  { value: "Josefin Sans", label: "Josefin Sans" },
+  { value: "Ubuntu Mono", label: "Ubuntu Mono" },
+  { value: "Shantell Sans", label: "Shantell Sans" },
+  { value: "Comic Neue", label: "Comic Sans (Neue)" },
+  { value: "Klee One", label: "Klee One" },
+  { value: "Playwrite US Moderna", label: "Playwrite US Moderna" },
+];
 
 export function SettingsPanel() {
   const [mode, setMode] = useState<ThemeMode>(() => getStoredMode());
   const [accent, setAccent] = useState<string>(() => getStoredAccent());
   const [custom, setCustom] = useState<string>(() => getStoredAccent());
+  const [fontSize, setFontSize] = useState<FontSize>(() => getStoredFontSize());
+  const [fontFamily, setFontFamily] = useState<string>(() => getStoredFontFamily());
+  const [customFont, setCustomFont] = useState<string>("");
 
   useEffect(() => {
-    applyTheme(mode, accent);
+    applyTheme(mode, accent, fontSize, fontFamily);
     // only on mount — theme is controlled via handlers afterwards
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -30,12 +47,30 @@ export function SettingsPanel() {
       setStoredAccent(v.toLowerCase());
     }
   };
+  const handleFontSize = (s: FontSize) => {
+    setFontSize(s);
+    setStoredFontSize(s);
+  };
+  const handleFontFamily = (f: string) => {
+    setFontFamily(f);
+    setStoredFontFamily(f);
+  };
+  const handleCustomFontSubmit = () => {
+    if (customFont.trim()) {
+      handleFontFamily(customFont.trim());
+      setCustomFont("");
+    }
+  };
   const handleReset = () => {
     setMode("dark");
     setAccent(DEFAULT_ACCENT);
     setCustom(DEFAULT_ACCENT);
+    setFontSize("medium");
+    setFontFamily("Inter");
     setStoredMode("dark");
     setStoredAccent(DEFAULT_ACCENT);
+    setStoredFontSize("medium");
+    setStoredFontFamily("Inter");
   };
 
   return (
@@ -112,6 +147,48 @@ export function SettingsPanel() {
               <div className="w-[40px] h-[40px] rounded-[8px] border border-white/10 shrink-0" style={{ background: accent }} title="Preview" />
             </div>
             <p className="text-[11px] text-[var(--color-muted)] mt-2">Accent powers every primary CTA, selection, and focus ring — Binance single-yellow philosophy, your color.</p>
+          </div>
+
+          <div className="h-px bg-[var(--color-hairline-on-dark)]" />
+
+          <div>
+            <div className="text-[11px] font-bold tracking-wide text-[var(--color-muted)] uppercase flex items-center gap-1.5"><Type size={12} /> Font size</div>
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              {[
+                { v: "small" as FontSize, label: "Small" },
+                { v: "medium" as FontSize, label: "Medium" },
+                { v: "large" as FontSize, label: "Large" },
+              ].map((opt) => {
+                const active = fontSize === opt.v;
+                return (
+                  <button
+                    key={opt.v}
+                    onClick={() => handleFontSize(opt.v)}
+                    className={`rounded-[8px] border py-2 flex items-center justify-center text-[12px] font-bold transition ${active ? "bg-[var(--color-primary)] border-[var(--color-primary)] text-[var(--color-on-primary)]" : "bg-[var(--color-canvas-dark)] border-[var(--color-hairline-on-dark)] hover:border-[var(--color-primary)]/20 text-white"}`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[11px] text-[var(--color-muted)] mt-2">Scales the overall UI size up or down for readability.</p>
+          </div>
+
+          <div className="h-px bg-[var(--color-hairline-on-dark)]" />
+
+          <div>
+            <div className="text-[11px] font-bold tracking-wide text-[var(--color-muted)] uppercase flex items-center gap-1.5"><Type size={12} /> Font Family</div>
+            <div className="mt-3 flex flex-col gap-3">
+              <Select value={FONT_OPTIONS.some(o => o.value === fontFamily) ? fontFamily : "custom"} onChange={(v) => {
+                if (v !== "custom") handleFontFamily(v);
+              }} options={[...FONT_OPTIONS, { value: "custom", label: FONT_OPTIONS.some(o => o.value === fontFamily) ? "Custom..." : `Custom: ${fontFamily}` }]} ariaLabel="Select Font Family" />
+              
+              <div className="flex items-center gap-2">
+                <input value={customFont} onChange={(e) => setCustomFont(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleCustomFontSubmit()} placeholder="Or type a Google Font name..." className="flex-1 h-9 rounded-[8px] bg-[var(--color-canvas-dark)] border border-[var(--color-hairline-on-dark)] text-[12px] px-3 focus:outline-none focus:border-[var(--color-primary)]/40 text-white placeholder:text-[var(--color-muted)]" />
+                <Button size="sm" onClick={handleCustomFontSubmit}>Apply</Button>
+              </div>
+            </div>
+            <p className="text-[11px] text-[var(--color-muted)] mt-2">Choose a font from the list, or type any exact Google Font name and click Apply. Note: Requires an internet connection to fetch the font.</p>
           </div>
         </div>
       </div>

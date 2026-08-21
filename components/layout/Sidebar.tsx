@@ -3,7 +3,7 @@ import { LayoutDashboard, Receipt, Wallet, Tag, PanelLeftClose, PanelLeftOpen } 
 
 export type PageKey = "dashboard" | "transactions" | "accounts" | "category";
 
-const NAV = [
+export const NAV = [
   { key: "dashboard" as PageKey, label: "Dashboard", icon: LayoutDashboard },
   { key: "transactions" as PageKey, label: "Transactions", icon: Receipt },
   { key: "accounts" as PageKey, label: "Accounts", icon: Wallet },
@@ -23,7 +23,7 @@ export function Sidebar({
 }) {
   return (
     <aside
-      className={`shrink-0 h-screen sticky top-0 bg-[var(--color-canvas-dark)] border-r border-[var(--color-hairline-on-dark)] flex flex-col transition-[width] duration-200 ${collapsed ? "w-[64px]" : "w-[240px]"}`}
+      className={`hidden sm:flex shrink-0 h-screen sticky top-0 bg-[var(--color-canvas-dark)] border-r border-[var(--color-hairline-on-dark)] flex-col transition-[width] duration-200 ${collapsed ? "w-[64px]" : "w-[240px]"}`}
     >
       {/* Brand row */}
       <div className={`h-[56px] flex items-center border-b border-[var(--color-hairline-on-dark)] px-3 gap-2 ${collapsed ? "justify-center" : "justify-between"}`}>
@@ -89,5 +89,25 @@ export function Sidebar({
         </div>
       </div>
     </aside>
+  );
+}
+
+export function BottomNav({ active, onChange }: { active: PageKey; onChange: (k: PageKey) => void }) {
+  return (
+    <nav className="sm:hidden fixed bottom-0 left-0 right-0 h-[64px] bg-[var(--color-surface-card-dark)] border-t border-[var(--color-hairline-on-dark)] flex items-center justify-around px-2 z-40">
+      {NAV.map((item) => {
+        const isActive = item.key === active;
+        return (
+          <button
+            key={item.key}
+            onClick={() => onChange(item.key)}
+            className={`flex flex-col items-center justify-center w-full h-full gap-1 transition ${isActive ? "text-[var(--color-primary)]" : "text-[var(--color-muted-strong)] hover:text-white"}`}
+          >
+            <item.icon size={20} strokeWidth={isActive ? 2.5 : 2} />
+            <span className="text-[10px] font-bold">{item.label}</span>
+          </button>
+        );
+      })}
+    </nav>
   );
 }
