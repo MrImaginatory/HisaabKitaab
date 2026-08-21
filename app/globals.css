@@ -78,10 +78,27 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
-  /* Light theme flip — add .light to <html> to switch transactional surfaces */
+  /* Light theme — overrides Binance dark tokens to light surfaces */
   html.light {
+    --color-canvas-dark: var(--color-canvas-light);
+    --color-surface-card-dark: var(--color-canvas-light);
+    --color-surface-elevated-dark: var(--color-surface-strong-light);
+    --color-hairline-on-dark: var(--color-hairline-on-light);
+    --color-body: var(--color-body-on-light);
+    --color-on-dark: var(--color-ink);
     background: var(--color-canvas-light);
     color: var(--color-body-on-light);
+  }
+  /* Light mode text flips — hardcoded text-white must become ink */
+  html.light [class*="text-white"] {
+    color: var(--color-ink) !important;
+  }
+  html.light [class*="hover:text-white"] {
+    --tw-text-opacity: 1;
+  }
+  html.light .text-white { color: var(--color-ink) !important; }
+  html.light [class*="border-[var(--color-hairline-on-dark)"] {
+    border-color: var(--color-hairline-on-light) !important;
   }
   ::selection {
     background: var(--color-primary);

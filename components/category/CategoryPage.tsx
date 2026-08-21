@@ -135,8 +135,8 @@ export function CategoryPage() {
   };
 
   return (
-    <div className="max-w-[980px] mx-auto px-6 py-6">
-      <div className="flex items-start justify-between gap-4">
+    <div className="h-full min-h-0 flex flex-col max-w-[980px] w-full mx-auto px-6 py-6">
+      <div className="shrink-0 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-[20px] font-bold tracking-tight text-white">Category</h1>
           <p className="text-[12px] leading-relaxed text-[var(--color-muted-strong)] mt-1 max-w-[60ch]">Organize expenses and income. Create categories manually or bulk-import via CSV. Duplicate names are always skipped.</p>
@@ -148,7 +148,7 @@ export function CategoryPage() {
         </div>
       </div>
 
-      <div className="mt-5 rounded-[12px] bg-[var(--color-surface-card-dark)] border border-[var(--color-hairline-on-dark)] overflow-visible">
+      <div className="mt-5 shrink-0 rounded-[12px] bg-[var(--color-surface-card-dark)] border border-[var(--color-hairline-on-dark)] overflow-visible">
         <div className="px-5 py-4 border-b border-[var(--color-hairline-on-dark)] flex items-center justify-between">
           <h2 className="text-[13px] font-bold text-white flex items-center gap-2">
             <span className="w-1 h-4 rounded-full bg-[var(--color-primary)]" /> Add category
@@ -188,15 +188,15 @@ export function CategoryPage() {
         </div>
       </div>
 
-      <div className="mt-4 rounded-[12px] bg-[var(--color-surface-card-dark)] border border-[var(--color-hairline-on-dark)] overflow-hidden">
-        <div className="px-5 py-3 flex items-center gap-3 border-b border-[var(--color-hairline-on-dark)]">
+      <div className="mt-4 flex-1 min-h-0 rounded-[12px] bg-[var(--color-surface-card-dark)] border border-[var(--color-hairline-on-dark)] overflow-hidden flex flex-col">
+        <div className="shrink-0 px-5 py-3 flex items-center gap-3 border-b border-[var(--color-hairline-on-dark)]">
           <h3 className="text-[13px] font-bold text-white">All categories</h3>
           <span className="text-[11px] px-2 py-0.5 rounded-full bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] text-[var(--color-muted-strong)] font-bold">{filteredCats.length}</span>
           <div className="ml-auto flex items-center gap-2">
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Filter by name or type…" className="h-8 w-[220px] rounded-[8px] bg-[var(--color-canvas-dark)] border border-[var(--color-hairline-on-dark)] text-white placeholder:text-[var(--color-muted)] text-[12px] px-3 focus:outline-none focus:border-[var(--color-primary)]/40" />
           </div>
         </div>
-        <div className="divide-y divide-[var(--color-hairline-on-dark)]">
+        <div className="flex-1 min-h-0 overflow-auto divide-y divide-[var(--color-hairline-on-dark)]">
           {loading ? (
             <div className="p-8 text-center text-[11px] text-[var(--color-muted)]">Loading SQLite…</div>
           ) : filteredCats.length === 0 ? (

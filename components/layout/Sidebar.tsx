@@ -1,17 +1,13 @@
 "use client";
-import { LayoutDashboard, Receipt, Wallet, Tag, Settings, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { LayoutDashboard, Receipt, Wallet, Tag, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
-export type PageKey = "dashboard" | "transactions" | "accounts" | "category" | "settings";
+export type PageKey = "dashboard" | "transactions" | "accounts" | "category";
 
 const NAV = [
   { key: "dashboard" as PageKey, label: "Dashboard", icon: LayoutDashboard },
   { key: "transactions" as PageKey, label: "Transactions", icon: Receipt },
   { key: "accounts" as PageKey, label: "Accounts", icon: Wallet },
   { key: "category" as PageKey, label: "Category", icon: Tag },
-];
-
-const BOTTOM_NAV: { key: PageKey; label: string; icon: typeof Settings }[] = [
-  { key: "settings", label: "Settings", icon: Settings },
 ];
 
 export function Sidebar({
@@ -79,25 +75,6 @@ export function Sidebar({
         })}
       </nav>
 
-      {/* Bottom nav — Settings */}
-      <div className="p-2 flex flex-col gap-1 border-t border-[var(--color-hairline-on-dark)]">
-        {BOTTOM_NAV.map((item) => {
-          const isActive = item.key === active;
-          return (
-            <button
-              key={item.key}
-              onClick={() => onChange(item.key)}
-              className={`w-full flex items-center gap-2.5 rounded-[8px] px-2.5 py-2.5 text-[13px] font-semibold transition border
-                ${isActive ? "bg-[var(--color-primary)] text-[var(--color-on-primary)] border-[var(--color-primary)]" : "bg-transparent text-[var(--color-muted-strong)] border-transparent hover:bg-[var(--color-surface-card-dark)] hover:text-white hover:border-[var(--color-hairline-on-dark)]"}
-                ${collapsed ? "justify-center px-2" : ""} `}
-              title={collapsed ? item.label : undefined}
-            >
-              <item.icon size={16} strokeWidth={isActive ? 2.2 : 1.8} className="shrink-0" />
-              {!collapsed && <span className="truncate">{item.label}</span>}
-            </button>
-          );
-        })}
-      </div>
       {/* Footer — collapsed hint */}
       <div className="p-2 border-t border-[var(--color-hairline-on-dark)]">
         <div className={`rounded-[8px] bg-[var(--color-surface-card-dark)] border border-[var(--color-hairline-on-dark)] px-2.5 py-2 ${collapsed ? "flex justify-center" : ""}`}>

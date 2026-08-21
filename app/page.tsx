@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Clock, FolderOpen, Download } from "lucide-react";
+import { Clock, FolderOpen, Download, Settings, X } from "lucide-react";
 import { Sidebar, PageKey } from "@/components/layout/Sidebar";
 import { CategoryPage } from "@/components/category/CategoryPage";
 import { SettingsPanel } from "@/components/settings/SettingsPanel";
@@ -10,36 +10,43 @@ import { createBlankDBBytes, downloadCurrentDB, openDBFromFile, getDB } from "@/
 
 const LAST_DB_KEY = "hk_last_db_name";
 
-function getLastDbName(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(LAST_DB_KEY);
-}
-
 function Placeholder({ title, desc }: { title: string; desc: string }) {
   return (
-    <div className="max-w-[980px] mx-auto px-6 py-6">
-      <h1 className="text-[20px] font-bold tracking-tight text-white">{title}</h1>
-      <p className="text-[12px] leading-relaxed text-[var(--color-muted-strong)] mt-1 max-w-[60ch]">{desc}</p>
-      <div className="mt-6 rounded-[12px] bg-[var(--color-surface-card-dark)] border border-[var(--color-hairline-on-dark)] border-dashed p-10 text-center">
-        <div className="text-[12px] font-bold text-white">Coming next</div>
-        <div className="text-[11px] text-[var(--color-muted)] mt-1">This page is scaffolded — Category is fully SQLite-backed.</div>
+    <div className="h-full overflow-auto">
+      <div className="max-w-[980px] mx-auto px-6 py-6">
+        <h1 className="text-[20px] font-bold tracking-tight text-white">{title}</h1>
+        <p className="text-[12px] leading-relaxed text-[var(--color-muted-strong)] mt-1 max-w-[60ch]">{desc}</p>
+        <div className="mt-6 rounded-[12px] bg-[var(--color-surface-card-dark)] border border-[var(--color-hairline-on-dark)] border-dashed p-10 text-center">
+          <div className="text-[12px] font-bold text-white">Coming next</div>
+          <div className="text-[11px] text-[var(--color-muted)] mt-1">This page is scaffolded — Category is fully SQLite-backed.</div>
+        </div>
       </div>
     </div>
   );
 }
 
 export default function Home() {
-  const [lastDb, setLastDb] = useState<string | null>(() => getLastDbName());
-  const [dbReady, setDbReady] = useState<boolean>(() => !!getLastDbName());
+  // Keep server and initial client render identical to avoid hydration mismatch.
+  // Server always renders the "choose DB" state; client upgrades after mount if needed.
+  const [lastDb, setLastDb] = useState<string | null>(null);
+  const [dbReady, setDbReady] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [active, setActive] = useState<PageKey>("category");
   const [collapsed, setCollapsed] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- hydration-safe: server renders fallback, client upgrades after mount
   useEffect(() => {
+    const stored = localStorage.getItem(LAST_DB_KEY);
+    if (stored) {
+      setLastDb(stored);
+      setDbReady(true);
+    }
+    setHydrated(true);
     applyTheme(getStoredMode(), getStoredAccent());
-    // ensure DB is initialized so file is openable elsewhere
     getDB().catch(() => {});
   }, []);
 
@@ -56,7 +63,6 @@ export default function Home() {
 
   const handleReconnect = async () => {
     if (!lastDb) return;
-    // DB already persisted in IndexedDB — just ensure it loads
     await getDB();
     showToast(`Reconnected to "${lastDb}"`);
     setDbReady(true);
@@ -85,7 +91,6 @@ export default function Home() {
   const handleDownloadBlank = async () => {
     const blankName = `hisaab-kitaab-blank-${new Date().toISOString().slice(0, 10)}.db`;
     try {
-      // download a real SQLite file with schema — openable in DB Browser / sqlite3
       const bytes = await createBlankDBBytes();
       const blob = new Blob([bytes as unknown as BlobPart], { type: "application/x-sqlite3" });
       const url = URL.createObjectURL(blob);
@@ -101,17 +106,29 @@ export default function Home() {
     }
   };
 
-  // Optional: download current DB button could be exposed elsewhere
-  // kept for completeness — not wired to UI yet
   const handleDownloadCurrent = async () => {
     const name = lastDb ?? `hisaab-kitaab-${new Date().toISOString().slice(0, 10)}.db`;
     await downloadCurrentDB(name);
   };
   void handleDownloadCurrent;
 
+  // Until hydration finishes, render the same tree the server did (choose-DB card)
+  // to prevent "server rendered HTML didn't match the client" (branch on localStorage, Date, etc.)
+  if (!hydrated) {
+    return (
+      <div className="h-screen max-h-[100vh] overflow-hidden bg-[var(--color-canvas-dark)] flex items-center justify-center p-6">
+        <div className="w-full max-w-[520px] rounded-[12px] bg-[var(--color-surface-card-dark)] border border-[var(--color-hairline-on-dark)] overflow-hidden opacity-0" aria-hidden>
+          <div className="px-6 pt-6 pb-5">
+            <h1 className="text-[16px] font-bold tracking-tight text-white leading-none">Choose your Hisaab database</h1>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!dbReady) {
     return (
-      <div className="min-h-screen bg-[var(--color-canvas-dark)] flex items-center justify-center p-6">
+      <div className="h-screen max-h-[100vh] overflow-hidden bg-[var(--color-canvas-dark)] flex items-center justify-center p-6">
         <input ref={fileRef} type="file" accept=".db,.sqlite,.sqlite3,application/x-sqlite3" className="hidden" onChange={handleFilePicked} />
         <div className="w-full max-w-[520px] rounded-[12px] bg-[var(--color-surface-card-dark)] border border-[var(--color-hairline-on-dark)] overflow-hidden">
           <div className="px-6 pt-6 pb-5">
@@ -154,24 +171,48 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--color-canvas-dark)] text-[var(--color-body)] flex">
+    <div className="h-screen max-h-[100vh] overflow-hidden bg-[var(--color-canvas-dark)] text-[var(--color-body)] flex">
       <Sidebar active={active} onChange={setActive} collapsed={collapsed} onToggle={() => setCollapsed((v) => !v)} />
-      <div className="flex-1 min-w-0 flex flex-col min-h-screen">
+      <div className="flex-1 min-w-0 flex flex-col h-screen max-h-[100vh] overflow-hidden">
         <div className="h-[44px] shrink-0 bg-[var(--color-surface-card-dark)] border-b border-[var(--color-hairline-on-dark)] flex items-center justify-between px-4">
           <span className="text-[11px] font-bold tracking-wide text-[var(--color-muted)] uppercase">
-            {active === "dashboard" ? "Dashboard" : active === "transactions" ? "Transactions" : active === "accounts" ? "Accounts" : active === "settings" ? "Settings" : "Category"}
+            {active === "dashboard" ? "Dashboard" : active === "transactions" ? "Transactions" : active === "accounts" ? "Accounts" : "Category"}
             <span className="ml-2 font-normal normal-case text-[var(--color-muted-strong)] hidden sm:inline">— {lastDb}</span>
           </span>
           <button onClick={() => setDbReady(false)} className="text-[11px] font-bold text-[var(--color-muted-strong)] hover:text-white border border-[var(--color-hairline-on-dark)] rounded-full px-3 py-1 hover:border-[var(--color-primary)]/20 transition">Switch DB</button>
         </div>
-        <main className="flex-1 overflow-auto bg-[var(--color-canvas-dark)]">
+        <main className="flex-1 min-h-0 overflow-hidden bg-[var(--color-canvas-dark)] flex flex-col">
           {active === "dashboard" && <Placeholder title="Dashboard" desc="Overview of balances, income vs expense, and khata health — coming next." />}
           {active === "transactions" && <Placeholder title="Transactions" desc="All Jama / Udhaar entries with filters — coming next." />}
           {active === "accounts" && <Placeholder title="Accounts" desc="Manage your cash, bank, and wallet accounts — coming next." />}
           {active === "category" && <CategoryPage />}
-          {active === "settings" && <SettingsPanel />}
         </main>
       </div>
+
+      <button
+        onClick={() => setSettingsOpen(true)}
+        aria-label="Open settings"
+        className="fixed bottom-5 right-5 z-40 w-12 h-12 rounded-full bg-[var(--color-primary)] text-[var(--color-on-primary)] shadow-[0_8px_24px_rgba(0,0,0,0.35)] border border-black/10 flex items-center justify-center hover:bg-[var(--color-primary-active)] active:scale-95 transition"
+      >
+        <Settings size={20} />
+      </button>
+
+      {settingsOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px]" onClick={() => setSettingsOpen(false)} aria-hidden />
+          <div className="relative w-[420px] max-w-[92vw] h-screen max-h-[100vh] overflow-hidden bg-[var(--color-surface-card-dark)] border-l border-[var(--color-hairline-on-dark)] shadow-[-12px_0_48px_rgba(0,0,0,0.45)] flex flex-col">
+            <div className="h-[44px] shrink-0 flex items-center justify-between px-4 border-b border-[var(--color-hairline-on-dark)]">
+              <span className="text-[11px] font-bold tracking-wide text-[var(--color-muted)] uppercase">Settings</span>
+              <button onClick={() => setSettingsOpen(false)} className="w-7 h-7 rounded-[6px] bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] text-[var(--color-muted)] hover:text-white flex items-center justify-center" aria-label="Close settings">
+                <X size={14} />
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-auto">
+              <SettingsPanel />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
