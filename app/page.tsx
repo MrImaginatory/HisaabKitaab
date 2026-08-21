@@ -4,9 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { Clock, FolderOpen, Download, Settings, X } from "lucide-react";
 import { Sidebar, PageKey } from "@/components/layout/Sidebar";
 import { CategoryPage } from "@/components/category/CategoryPage";
+import { AccountsPage } from "@/components/accounts/AccountsPage";
 import { SettingsPanel } from "@/components/settings/SettingsPanel";
 import { applyTheme, getStoredAccent, getStoredMode } from "@/lib/theme";
-import { createBlankDBBytes, downloadCurrentDB, openDBFromFile, getDB } from "@/lib/db";
+import { createBlankDBBytes, downloadCurrentDB, openDBFromFile, getDB, setDBFromBytes, reconnectDB } from "@/lib/db";
 
 const LAST_DB_KEY = "hk_last_db_name";
 
@@ -38,7 +39,6 @@ export default function Home() {
   const [collapsed, setCollapsed] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- hydration-safe: server renders fallback, client upgrades after mount
   useEffect(() => {
     const stored = localStorage.getItem(LAST_DB_KEY);
     if (stored) {
@@ -63,12 +63,35 @@ export default function Home() {
 
   const handleReconnect = async () => {
     if (!lastDb) return;
-    await getDB();
-    showToast(`Reconnected to "${lastDb}"`);
-    setDbReady(true);
+    try {
+      await reconnectDB();
+      showToast(`Reconnected to "${lastDb}"`);
+      setDbReady(true);
+    } catch (err: any) {
+      showToast(err.message || "Failed to reconnect");
+    }
   };
 
-  const handleOpenClick = () => fileRef.current?.click();
+  const handleOpenClick = async () => {
+    if ('showOpenFilePicker' in window) {
+      try {
+        const [handle] = await (window as any).showOpenFilePicker({
+          types: [{ description: 'SQLite Database', accept: { 'application/x-sqlite3': ['.db', '.sqlite', '.sqlite3'] } }],
+          multiple: false
+        });
+        const file = await handle.getFile();
+        await openDBFromFile(file, handle);
+        enterDashboard(file.name);
+        showToast(`Opened "${file.name}" — SQLite verified`);
+      } catch (err: any) {
+        if (err.name !== 'AbortError') {
+          showToast("Failed to open SQLite file");
+        }
+      }
+    } else {
+      fileRef.current?.click();
+    }
+  };
 
   const handleFilePicked: React.ChangeEventHandler<HTMLInputElement> = async (e) => {
     const file = e.target.files?.[0];
@@ -92,6 +115,8 @@ export default function Home() {
     const blankName = `hisaab-kitaab-blank-${new Date().toISOString().slice(0, 10)}.db`;
     try {
       const bytes = await createBlankDBBytes();
+      // make the blank DB the active one in IndexedDB — so import goes to the blank file
+      await setDBFromBytes(bytes);
       const blob = new Blob([bytes as unknown as BlobPart], { type: "application/x-sqlite3" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -184,7 +209,7 @@ export default function Home() {
         <main className="flex-1 min-h-0 overflow-hidden bg-[var(--color-canvas-dark)] flex flex-col">
           {active === "dashboard" && <Placeholder title="Dashboard" desc="Overview of balances, income vs expense, and khata health — coming next." />}
           {active === "transactions" && <Placeholder title="Transactions" desc="All Jama / Udhaar entries with filters — coming next." />}
-          {active === "accounts" && <Placeholder title="Accounts" desc="Manage your cash, bank, and wallet accounts — coming next." />}
+          {active === "accounts" && <AccountsPage />}
           {active === "category" && <CategoryPage />}
         </main>
       </div>

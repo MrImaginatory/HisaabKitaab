@@ -6,6 +6,8 @@
 let SQL: any = null;
 let db: any = null;
 let initPromise: Promise<any> | null = null;
+let fileHandle: any = null;
+
 
 const IDB_NAME = "HisaabKitaab";
 const IDB_STORE = "sqlite";
@@ -59,6 +61,37 @@ async function idbPut(bytes: Uint8Array): Promise<void> {
   });
 }
 
+async function idbGetHandle(): Promise<any> {
+  if (typeof indexedDB === "undefined") return null;
+  const idb = await openIDB();
+  return new Promise((resolve, reject) => {
+    const tx = idb.transaction(IDB_STORE, "readonly");
+    const store = tx.objectStore(IDB_STORE);
+    const req = store.get("file_handle");
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function idbPutHandle(handle: any): Promise<void> {
+  if (typeof indexedDB === "undefined") return;
+  const idb = await openIDB();
+  return new Promise((resolve, reject) => {
+    const tx = idb.transaction(IDB_STORE, "readwrite");
+    const store = tx.objectStore(IDB_STORE);
+    if (handle) {
+      const req = store.put(handle, "file_handle");
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    } else {
+      const req = store.delete("file_handle");
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    }
+  });
+}
+
+
 // ---------- SQL.js loader ----------
 async function loadSQL() {
   if (SQL) return SQL;
@@ -79,9 +112,39 @@ function ensureSchema(database: any) {
       createdAt INTEGER NOT NULL
     );
   `);
-  // Future tables can be added here without wiping user data
-  // CREATE TABLE IF NOT EXISTS accounts (...)
-  // CREATE TABLE IF NOT EXISTS transactions (...)
+  database.run(`
+    CREATE TABLE IF NOT EXISTS accounts (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      nameKey TEXT NOT NULL UNIQUE COLLATE NOCASE,
+      openingBalance REAL NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      date TEXT NOT NULL,
+      createdAt INTEGER NOT NULL
+    );
+  `);
+  // migrate legacy rows to lowercase (spec: everything saved lowercase)
+  try {
+    database.run(`UPDATE categories SET name = lower(name), nameKey = lower(nameKey), type = lower(type), color = lower(color) WHERE lower(name) != name OR lower(nameKey) != nameKey OR lower(type) != type OR lower(color) != color`);
+  } catch {}
+  try {
+    database.run(`UPDATE accounts SET name = lower(name), nameKey = lower(nameKey), description = lower(description) WHERE lower(name) != name OR lower(nameKey) != nameKey OR lower(description) != description`);
+  } catch {}
+  // CREATE TABLE IF NOT EXISTS transactions (...) — next
+}
+
+export async function setDBFromBytes(bytes: Uint8Array): Promise<void> {
+  const S = await loadSQL();
+  const newDb = new S.Database(bytes);
+  ensureSchema(newDb);
+  if (db?.close) try { db.close(); } catch {}
+  db = newDb;
+  
+  fileHandle = null;
+  await idbPutHandle(null);
+  
+  initPromise = Promise.resolve(db);
+  await saveDB();
 }
 
 // ---------- Public API ----------
@@ -115,6 +178,16 @@ export async function saveDB(): Promise<void> {
   if (!db) return;
   const data = db.export() as Uint8Array;
   await idbPut(data);
+
+  if (fileHandle) {
+    try {
+      const writable = await fileHandle.createWritable();
+      await writable.write(data);
+      await writable.close();
+    } catch (e) {
+      console.error("Failed to write to file handle:", e);
+    }
+  }
 }
 
 export async function createBlankDBBytes(): Promise<Uint8Array> {
@@ -126,7 +199,7 @@ export async function createBlankDBBytes(): Promise<Uint8Array> {
   return out;
 }
 
-export async function openDBFromFile(file: File): Promise<void> {
+export async function openDBFromFile(file: File, handle?: any): Promise<void> {
   const buf = new Uint8Array(await file.arrayBuffer());
   const S = await loadSQL();
   // validate header quickly
@@ -139,8 +212,35 @@ export async function openDBFromFile(file: File): Promise<void> {
   // replace singleton
   if (db?.close) try { db.close(); } catch {}
   db = newDb;
+
+  fileHandle = handle || null;
+  await idbPutHandle(fileHandle);
+
   initPromise = Promise.resolve(db);
   await saveDB();
+}
+
+export async function reconnectDB(): Promise<void> {
+  fileHandle = await idbGetHandle();
+  if (fileHandle) {
+    const opts = { mode: 'readwrite' };
+    if ((await fileHandle.queryPermission(opts)) !== 'granted') {
+      const req = await fileHandle.requestPermission(opts);
+      if (req !== 'granted') {
+        throw new Error("Permission to modify the file was denied. Please open it again.");
+      }
+    }
+    const file = await fileHandle.getFile();
+    const buf = new Uint8Array(await file.arrayBuffer());
+    const S = await loadSQL();
+    const newDb = new S.Database(buf);
+    ensureSchema(newDb);
+    if (db?.close) try { db.close(); } catch {}
+    db = newDb;
+    initPromise = Promise.resolve(db);
+    return;
+  }
+  await getDB();
 }
 
 export async function downloadCurrentDB(filename: string) {
@@ -180,21 +280,24 @@ export async function dbGetCategories(): Promise<Category[]> {
 }
 
 export async function dbAddCategory(c: Omit<Category, "id" | "nameKey" | "createdAt">): Promise<{ ok: boolean; error?: string; category?: Category }> {
-  const name = c.name.trim();
-  if (!name) return { ok: false, error: "Category name is required" };
+  const rawName = c.name.trim();
+  if (!rawName) return { ok: false, error: "Category name is required" };
+  // spec: everything saved lowercase in SQLite
+  const name = rawName.toLowerCase();
   if (!/^#[0-9a-fA-F]{6}$/.test(c.color)) return { ok: false, error: "Color must be hex #rrggbb" };
-  if (c.type !== "income" && c.type !== "expense") return { ok: false, error: "Type must be income or expense" };
-  const key = name.toLowerCase();
+  const type = c.type.trim().toLowerCase() as CategoryType;
+  if (type !== "income" && type !== "expense") return { ok: false, error: "Type must be income or expense" };
+  const key = name; // already lower
+  const color = c.color.toLowerCase();
   const d = await getDB();
-  // dup check
   const dup = d.exec(`SELECT 1 FROM categories WHERE nameKey = '${key.replace(/'/g, "''")}' LIMIT 1`);
-  if (dup.length && dup[0].values.length) return { ok: false, error: `Category "${name}" already exists` };
+  if (dup.length && dup[0].values.length) return { ok: false, error: `Category "${rawName}" already exists` };
   const cat: Category = {
     id: `cat_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
     name,
     nameKey: key,
-    type: c.type,
-    color: c.color.toLowerCase(),
+    type,
+    color,
     createdAt: Date.now(),
   };
   try {
@@ -203,7 +306,7 @@ export async function dbAddCategory(c: Omit<Category, "id" | "nameKey" | "create
     return { ok: true, category: cat };
   } catch (e: any) {
     const msg = e?.message ?? String(e);
-    if (/UNIQUE/i.test(msg)) return { ok: false, error: `Category "${name}" already exists` };
+    if (/UNIQUE/i.test(msg)) return { ok: false, error: `Category "${rawName}" already exists` };
     return { ok: false, error: msg };
   }
 }
@@ -214,8 +317,128 @@ export async function dbDeleteCategory(id: string): Promise<void> {
   await saveDB();
 }
 
+export async function dbUpdateCategory(id: string, c: Omit<Category, "id" | "nameKey" | "createdAt">): Promise<{ ok: boolean; error?: string; category?: Category }> {
+  const rawName = c.name.trim();
+  if (!rawName) return { ok: false, error: "Category name is required" };
+  const name = rawName.toLowerCase();
+  if (!/^#[0-9a-fA-F]{6}$/.test(c.color)) return { ok: false, error: "Color must be hex #rrggbb" };
+  const type = c.type.trim().toLowerCase() as CategoryType;
+  if (type !== "income" && type !== "expense") return { ok: false, error: "Type must be income or expense" };
+  const key = name;
+  const color = c.color.toLowerCase();
+  
+  const d = await getDB();
+  const dup = d.exec(`SELECT 1 FROM categories WHERE nameKey = '${key.replace(/'/g, "''")}' AND id != '${id}' LIMIT 1`);
+  if (dup.length && dup[0].values.length) return { ok: false, error: `Category "${rawName}" already exists` };
+
+  try {
+    d.run("UPDATE categories SET name = ?, nameKey = ?, type = ?, color = ? WHERE id = ?", [name, key, type, color, id]);
+    await saveDB();
+    return { ok: true, category: { id, name, nameKey: key, type, color, createdAt: 0 } };
+  } catch (e: any) {
+    const msg = e?.message ?? String(e);
+    return { ok: false, error: msg };
+  }
+}
+
 // utility for CategoryPage CSV preview analysis — needs existing keys
 export async function dbGetCategoryKeys(): Promise<Set<string>> {
   const cats = await dbGetCategories();
   return new Set(cats.map((c) => c.nameKey));
+}
+
+// ---------- Main Accounts helpers ----------
+export interface MainAccount {
+  id: string;
+  name: string;
+  nameKey: string;
+  openingBalance: number;
+  description: string;
+  date: string; // ISO YYYY-MM-DD
+  createdAt: number;
+}
+
+export async function dbGetAccounts(): Promise<MainAccount[]> {
+  const d = await getDB();
+  const res = d.exec("SELECT id, name, nameKey, openingBalance, description, date, createdAt FROM accounts ORDER BY createdAt DESC");
+  if (!res.length) return [];
+  const cols = res[0].columns as string[];
+  const vals = res[0].values as any[][];
+  return vals.map((row) => {
+    const o: any = {};
+    cols.forEach((c, i) => (o[c] = row[i]));
+    return o as MainAccount;
+  });
+}
+
+export async function dbAddAccount(a: Omit<MainAccount, "id" | "nameKey" | "createdAt">): Promise<{ ok: boolean; error?: string; account?: MainAccount }> {
+  const rawName = a.name.trim();
+  if (!rawName) return { ok: false, error: "Account name is required" };
+  if (!Number.isFinite(a.openingBalance)) return { ok: false, error: "Opening balance must be a number" };
+  if (!a.date || !/^\d{4}-\d{2}-\d{2}$/.test(a.date)) return { ok: false, error: "Date is required (YYYY-MM-DD)" };
+  // save everything lowercase per spec
+  const name = rawName.toLowerCase();
+  const key = name;
+  const description = (a.description ?? "").trim().toLowerCase();
+  const d = await getDB();
+  const dup = d.exec(`SELECT 1 FROM accounts WHERE nameKey = '${key.replace(/'/g, "''")}' LIMIT 1`);
+  if (dup.length && dup[0].values.length) return { ok: false, error: `Account "${rawName}" already exists` };
+  const acc: MainAccount = {
+    id: `acc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    name,
+    nameKey: key,
+    openingBalance: Number(a.openingBalance),
+    description,
+    date: a.date,
+    createdAt: Date.now(),
+  };
+  try {
+    d.run("INSERT INTO accounts (id, name, nameKey, openingBalance, description, date, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)", [
+      acc.id,
+      acc.name,
+      acc.nameKey,
+      acc.openingBalance,
+      acc.description,
+      acc.date,
+      acc.createdAt,
+    ]);
+    await saveDB();
+    return { ok: true, account: acc };
+  } catch (e: any) {
+    const msg = e?.message ?? String(e);
+    if (/UNIQUE/i.test(msg)) return { ok: false, error: `Account "${rawName}" already exists` };
+    return { ok: false, error: msg };
+  }
+}
+
+export async function dbDeleteAccount(id: string): Promise<void> {
+  const d = await getDB();
+  d.run("DELETE FROM accounts WHERE id = ?", [id]);
+  await saveDB();
+}
+
+export async function dbUpdateAccount(id: string, a: Omit<MainAccount, "id" | "nameKey" | "createdAt">): Promise<{ ok: boolean; error?: string; account?: MainAccount }> {
+  const rawName = a.name.trim();
+  if (!rawName) return { ok: false, error: "Account name is required" };
+  if (!Number.isFinite(a.openingBalance)) return { ok: false, error: "Opening balance must be a number" };
+  if (!a.date || !/^\d{4}-\d{2}-\d{2}$/.test(a.date)) return { ok: false, error: "Date is required (YYYY-MM-DD)" };
+  
+  const name = rawName.toLowerCase();
+  const key = name;
+  const description = (a.description ?? "").trim().toLowerCase();
+  
+  const d = await getDB();
+  const dup = d.exec(`SELECT 1 FROM accounts WHERE nameKey = '${key.replace(/'/g, "''")}' AND id != '${id}' LIMIT 1`);
+  if (dup.length && dup[0].values.length) return { ok: false, error: `Account "${rawName}" already exists` };
+
+  try {
+    d.run("UPDATE accounts SET name = ?, nameKey = ?, openingBalance = ?, description = ?, date = ? WHERE id = ?", [
+      name, key, a.openingBalance, description, a.date, id
+    ]);
+    await saveDB();
+    return { ok: true, account: { id, name, nameKey: key, openingBalance: a.openingBalance, description, date: a.date, createdAt: 0 } };
+  } catch (e: any) {
+    const msg = e?.message ?? String(e);
+    return { ok: false, error: msg };
+  }
 }

@@ -17,6 +17,10 @@ const eslintConfig = defineConfig([
     files: ["lib/db.ts"],
     rules: { "@typescript-eslint/no-explicit-any": "off" },
   },
+  {
+    files: ["app/page.tsx", "components/ui/DatePicker.tsx"],
+    rules: { "react-hooks/set-state-in-effect": "off" },
+  },
 ]);
 
 export default eslintConfig;

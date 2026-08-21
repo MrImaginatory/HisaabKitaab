@@ -1,19 +1,24 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Upload, Download, Trash2, AlertTriangle, Check, X } from "lucide-react";
+import { Plus, Upload, Download, Trash2, AlertTriangle, Check, X, LayoutList, LayoutGrid, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
+import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Category, CategoryType, ParsedCsvRow, analyzeForPreview, parseCategoryCsv, sampleCsv } from "@/lib/categoryStore";
-import { dbGetCategories, dbAddCategory, dbDeleteCategory } from "@/lib/db";
+import { dbGetCategories, dbAddCategory, dbDeleteCategory, dbUpdateCategory } from "@/lib/db";
+import { displayName } from "@/lib/stringUtils";
 
 export function CategoryPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"list" | "card">("list");
   const [name, setName] = useState("");
   const [type, setType] = useState<CategoryType>("expense");
   const [color, setColor] = useState("#fcd535");
   const [formErr, setFormErr] = useState<string | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [query, setQuery] = useState("");
 
@@ -39,23 +44,44 @@ export function CategoryPage() {
     setTimeout(() => setToast(null), 2800);
   };
 
-  const handleAdd = async () => {
+  const handleSave = async () => {
     setFormErr(null);
-    const res = await dbAddCategory({ name, type, color });
-    if (!res.ok) {
-      setFormErr(res.error ?? "Failed");
-      return;
+    if (editId) {
+      const res = await dbUpdateCategory(editId, { name, type, color });
+      if (!res.ok) { setFormErr(res.error ?? "Failed"); return; }
+      showToast(`Updated "${displayName(res.category?.name ?? name)}"`);
+    } else {
+      const res = await dbAddCategory({ name, type, color });
+      if (!res.ok) { setFormErr(res.error ?? "Failed"); return; }
+      showToast(`Added "${displayName(res.category?.name ?? name)}"`);
     }
-    setName("");
+    setIsAddOpen(false);
     await refresh();
-    showToast(`Added "${res.category?.name}"`);
+  };
+
+  const openAdd = () => {
+    setEditId(null);
+    setName("");
+    setType("expense");
+    setColor("#fcd535");
+    setFormErr(null);
+    setIsAddOpen(true);
+  };
+
+  const openEdit = (c: Category) => {
+    setEditId(c.id);
+    setName(displayName(c.name));
+    setType(c.type);
+    setColor(c.color);
+    setFormErr(null);
+    setIsAddOpen(true);
   };
 
   const handleDelete = async (id: string, n: string) => {
-    if (!confirm(`Delete category "${n}"?`)) return;
+    if (!confirm(`Delete category "${displayName(n)}"?`)) return;
     await dbDeleteCategory(id);
     await refresh();
-    showToast(`Deleted "${n}"`);
+    showToast(`Deleted "${displayName(n)}"`);
   };
 
   const handleCsvPick: React.ChangeEventHandler<HTMLInputElement> = async (e) => {
@@ -142,24 +168,22 @@ export function CategoryPage() {
           <p className="text-[12px] leading-relaxed text-[var(--color-muted-strong)] mt-1 max-w-[60ch]">Organize expenses and income. Create categories manually or bulk-import via CSV. Duplicate names are always skipped.</p>
         </div>
         <div className="hidden sm:flex items-center gap-2">
+          <input ref={csvInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleCsvPick} />
+          <Button variant="secondary" size="sm" onClick={() => csvInputRef.current?.click()}>
+            <Upload size={14} /> Import CSV
+          </Button>
           <Button variant="secondary" size="sm" onClick={downloadSample}>
             <Download size={14} /> Sample CSV
+          </Button>
+          <Button size="sm" onClick={openAdd}>
+            <Plus size={14} /> Add Category
           </Button>
         </div>
       </div>
 
-      <div className="mt-5 shrink-0 rounded-[12px] bg-[var(--color-surface-card-dark)] border border-[var(--color-hairline-on-dark)] overflow-visible">
-        <div className="px-5 py-4 border-b border-[var(--color-hairline-on-dark)] flex items-center justify-between">
-          <h2 className="text-[13px] font-bold text-white flex items-center gap-2">
-            <span className="w-1 h-4 rounded-full bg-[var(--color-primary)]" /> Add category
-          </h2>
-          <span className="text-[11px] font-medium text-[var(--color-muted)]">{loading ? "…" : `${categories.length} total`}</span>
-        </div>
-        <div className="p-4 grid grid-cols-1 md:grid-cols-[1.4fr_0.9fr_0.7fr_auto] gap-3 items-end">
-          <label className="flex flex-col gap-1.5">
-            <span className="text-[11px] font-bold tracking-wide text-[var(--color-muted)] uppercase">Category name</span>
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Groceries, Salary, Rent" className="h-[40px] rounded-[8px] bg-[var(--color-canvas-dark)] border border-[var(--color-hairline-on-dark)] text-white placeholder:text-[var(--color-muted)] text-[13px] px-3 focus:outline-none focus:border-[var(--color-primary)]/50" />
-          </label>
+      <Dialog open={isAddOpen} onClose={() => setIsAddOpen(false)} title={editId ? "Edit category" : "Add category"} showClose maxWidth="max-w-[420px]">
+        <div className="flex flex-col gap-4">
+          <Input label="Category name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Groceries, Salary, Rent" />
           <label className="flex flex-col gap-1.5">
             <span className="text-[11px] font-bold tracking-wide text-[var(--color-muted)] uppercase">Type</span>
             <Select value={type} onChange={(v) => setType(v as CategoryType)} options={[{ value: "expense", label: "Expense" }, { value: "income", label: "Income" }]} ariaLabel="Category type" />
@@ -171,32 +195,27 @@ export function CategoryPage() {
               <input value={color} onChange={(e) => setColor(e.target.value)} className="flex-1 bg-transparent text-[12px] font-num text-white focus:outline-none" placeholder="#fcd535" />
             </div>
           </label>
-          <Button onClick={handleAdd} size="md" className="h-[40px] shrink-0">
-            <Plus size={14} /> Add
-          </Button>
+          {formErr && <div className="text-[11px] font-semibold text-[var(--color-trading-down)] flex items-center gap-1.5"><AlertTriangle size={12} /> {formErr}</div>}
+          <div className="pt-2 flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setIsAddOpen(false)}>Cancel</Button>
+            <Button onClick={handleSave}>{editId ? "Save changes" : "Add category"}</Button>
+          </div>
         </div>
-        {formErr && <div className="px-4 pb-3 text-[11px] font-semibold text-[var(--color-trading-down)] flex items-center gap-1.5"><AlertTriangle size={12} /> {formErr}</div>}
-        <div className="px-4 pb-4 flex flex-wrap gap-2">
-          <input ref={csvInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleCsvPick} />
-          <Button variant="secondary" size="sm" onClick={() => csvInputRef.current?.click()}>
-            <Upload size={14} /> Import via CSV
-          </Button>
-          <Button variant="ghost" size="sm" onClick={downloadSample} className="md:hidden">
-            <Download size={14} /> Sample CSV
-          </Button>
-          <span className="text-[11px] text-[var(--color-muted)] self-center">CSV columns: <span className="font-num text-white">categoryname, category type, color</span></span>
-        </div>
-      </div>
+      </Dialog>
 
       <div className="mt-4 flex-1 min-h-0 rounded-[12px] bg-[var(--color-surface-card-dark)] border border-[var(--color-hairline-on-dark)] overflow-hidden flex flex-col">
         <div className="shrink-0 px-5 py-3 flex items-center gap-3 border-b border-[var(--color-hairline-on-dark)]">
           <h3 className="text-[13px] font-bold text-white">All categories</h3>
           <span className="text-[11px] px-2 py-0.5 rounded-full bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] text-[var(--color-muted-strong)] font-bold">{filteredCats.length}</span>
           <div className="ml-auto flex items-center gap-2">
+            <div className="flex bg-[var(--color-surface-elevated-dark)] p-0.5 rounded-[8px] border border-[var(--color-hairline-on-dark)]">
+              <button onClick={() => setViewMode("list")} className={`p-1.5 rounded-[6px] transition ${viewMode === "list" ? "bg-[var(--color-surface-card-dark)] text-white shadow-sm" : "text-[var(--color-muted)] hover:text-white"}`}><LayoutList size={14}/></button>
+              <button onClick={() => setViewMode("card")} className={`p-1.5 rounded-[6px] transition ${viewMode === "card" ? "bg-[var(--color-surface-card-dark)] text-white shadow-sm" : "text-[var(--color-muted)] hover:text-white"}`}><LayoutGrid size={14}/></button>
+            </div>
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Filter by name or type…" className="h-8 w-[220px] rounded-[8px] bg-[var(--color-canvas-dark)] border border-[var(--color-hairline-on-dark)] text-white placeholder:text-[var(--color-muted)] text-[12px] px-3 focus:outline-none focus:border-[var(--color-primary)]/40" />
           </div>
         </div>
-        <div className="flex-1 min-h-0 overflow-auto divide-y divide-[var(--color-hairline-on-dark)]">
+        <div className="flex-1 min-h-0 overflow-auto">
           {loading ? (
             <div className="p-8 text-center text-[11px] text-[var(--color-muted)]">Loading SQLite…</div>
           ) : filteredCats.length === 0 ? (
@@ -204,18 +223,51 @@ export function CategoryPage() {
               <div className="text-[12px] font-bold text-white">No categories yet</div>
               <div className="text-[11px] text-[var(--color-muted)] mt-1">Add one above or import a CSV. Duplicates are auto-skipped.</div>
             </div>
+          ) : viewMode === "list" ? (
+            <div className="divide-y divide-[var(--color-hairline-on-dark)]">
+              {filteredCats.map((c) => (
+                <div key={c.id} className="flex items-center gap-3 px-5 py-3 hover:bg-[#11161c]/60 transition">
+                  <span className="w-3 h-3 rounded-full shrink-0 border border-white/15" style={{ background: c.color }} />
+                  <span className="text-[13px] font-semibold text-white truncate min-w-0 flex-1">{displayName(c.name)}</span>
+                  <span className={`text-[11px] font-bold px-2 py-1 rounded-full border shrink-0 ${c.type === "income" ? "bg-[var(--color-trading-up)]/12 text-[var(--color-trading-up)] border-[var(--color-trading-up)]/20" : "bg-[var(--color-trading-down)]/12 text-[var(--color-trading-down)] border-[var(--color-trading-down)]/20"}`}>{displayName(c.type)}</span>
+                  <span className="hidden sm:inline font-num text-[11px] text-[var(--color-muted)] shrink-0">{c.color}</span>
+                  <div className="flex items-center gap-1 shrink-0 ml-2">
+                    <button onClick={() => openEdit(c)} className="w-7 h-7 rounded-[6px] bg-transparent border border-transparent hover:bg-[#fcd535]/10 hover:border-[#fcd535]/20 text-[var(--color-muted)] hover:text-[#fcd535] flex items-center justify-center transition shrink-0" aria-label="Edit">
+                      <Pencil size={14} />
+                    </button>
+                    <button onClick={() => handleDelete(c.id, c.name)} className="w-7 h-7 rounded-[6px] bg-transparent border border-transparent hover:bg-[var(--color-trading-down)]/10 hover:border-[var(--color-trading-down)]/20 text-[var(--color-muted)] hover:text-[var(--color-trading-down)] flex items-center justify-center transition shrink-0" aria-label="Delete">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : (
-            filteredCats.map((c) => (
-              <div key={c.id} className="flex items-center gap-3 px-5 py-3 hover:bg-[#11161c]/60 transition">
-                <span className="w-3 h-3 rounded-full shrink-0 border border-white/15" style={{ background: c.color }} />
-                <span className="text-[13px] font-semibold text-white truncate min-w-0 flex-1">{c.name}</span>
-                <span className={`text-[11px] font-bold px-2 py-1 rounded-full border shrink-0 ${c.type === "income" ? "bg-[var(--color-trading-up)]/12 text-[var(--color-trading-up)] border-[var(--color-trading-up)]/20" : "bg-[var(--color-trading-down)]/12 text-[var(--color-trading-down)] border-[var(--color-trading-down)]/20"}`}>{c.type}</span>
-                <span className="hidden sm:inline font-num text-[11px] text-[var(--color-muted)] shrink-0">{c.color}</span>
-                <button onClick={() => handleDelete(c.id, c.name)} className="w-7 h-7 rounded-[6px] bg-transparent border border-transparent hover:bg-[var(--color-trading-down)]/10 hover:border-[var(--color-trading-down)]/20 text-[var(--color-muted)] hover:text-[var(--color-trading-down)] flex items-center justify-center transition shrink-0" aria-label="Delete">
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            ))
+            <div className="p-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              {filteredCats.map((c) => (
+                <div key={c.id} className="rounded-[12px] p-4 bg-[var(--color-canvas-dark)] border border-[var(--color-hairline-on-dark)] hover:border-[var(--color-primary)]/20 transition flex flex-col gap-3 group relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-full h-1" style={{ background: c.color }} />
+                  <div className="flex items-start justify-between gap-3 mt-1">
+                    <div className="flex items-center gap-2">
+                      <span className="w-4 h-4 rounded-full border border-white/15 shrink-0 shadow-sm" style={{ background: c.color }} />
+                      <span className="text-[13px] font-bold text-white truncate">{displayName(c.name)}</span>
+                    </div>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition shrink-0 -mr-2 -mt-1.5">
+                      <button onClick={() => openEdit(c)} className="w-7 h-7 rounded-[6px] bg-transparent border border-transparent hover:bg-[#fcd535]/10 hover:border-[#fcd535]/20 text-[var(--color-muted)] hover:text-[#fcd535] flex items-center justify-center transition" aria-label="Edit">
+                        <Pencil size={14} />
+                      </button>
+                      <button onClick={() => handleDelete(c.id, c.name)} className="w-7 h-7 rounded-[6px] bg-transparent border border-transparent hover:bg-[var(--color-trading-down)]/10 hover:border-[var(--color-trading-down)]/20 text-[var(--color-muted)] hover:text-[var(--color-trading-down)] flex items-center justify-center transition" aria-label="Delete">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="mt-1 flex items-center justify-between">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${c.type === "income" ? "bg-[var(--color-trading-up)]/12 text-[var(--color-trading-up)] border-[var(--color-trading-up)]/20" : "bg-[var(--color-trading-down)]/12 text-[var(--color-trading-down)] border-[var(--color-trading-down)]/20"}`}>{displayName(c.type)}</span>
+                    <span className="font-num text-[10px] text-[var(--color-muted-strong)]">{c.color}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       </div>
@@ -245,8 +297,8 @@ export function CategoryPage() {
                   return (
                     <tr key={i} className={isInvalid || isDupDb || isDupCsv ? "bg-[#f6465d]/[0.04]" : ""}>
                       <td className="px-3 py-2 text-[11px] font-num text-[var(--color-muted)]">{r.rowIndex}</td>
-                      <td className="px-3 py-2 text-[12px] font-semibold text-white truncate max-w-[180px]">{r.normalizedName || <span className="text-[var(--color-muted)]">—</span>}</td>
-                      <td className="px-3 py-2 text-[11px] font-bold capitalize text-[var(--color-muted-strong)]">{r.normalizedType ?? r.type ?? "—"}</td>
+                      <td className="px-3 py-2 text-[12px] font-semibold text-white truncate max-w-[180px]">{r.normalizedName ? displayName(r.normalizedName) : <span className="text-[var(--color-muted)]">—</span>}</td>
+                      <td className="px-3 py-2 text-[11px] font-bold text-[var(--color-muted-strong)]">{r.normalizedType ? displayName(r.normalizedType) : r.type ? displayName(r.type) : "—"}</td>
                       <td className="px-3 py-2">
                         <span className="inline-flex items-center gap-1.5 text-[11px] font-num text-[var(--color-muted)]">
                           {r.normalizedColor && <span className="w-3 h-3 rounded-full border border-white/15 shrink-0" style={{ background: r.normalizedColor }} />}{r.normalizedColor ?? r.color ?? "—"}
