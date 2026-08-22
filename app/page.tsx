@@ -82,9 +82,11 @@ export default function Home() {
           multiple: false
         });
         const file = await handle.getFile();
+        localStorage.setItem(LAST_DB_KEY, file.name);
+        setLastDb(file.name);
         await openDBFromFile(file, handle);
-        enterDashboard(file.name);
-        showToast(`Opened "${file.name}" — SQLite verified`);
+        setDbReady(true);
+        showToast(`Opened "${file.name}" — SQLite verified (edits write directly to this file)`);
       } catch (err: any) {
         if (err.name !== 'AbortError') {
           showToast("Failed to open SQLite file");
@@ -103,9 +105,12 @@ export default function Home() {
       return;
     }
     try {
+      // set key first so IndexedDB save goes to the opened file's entry
+      localStorage.setItem(LAST_DB_KEY, file.name);
+      setLastDb(file.name);
       await openDBFromFile(file);
-      enterDashboard(file.name);
-      showToast(`Opened "${file.name}" — SQLite verified`);
+      setDbReady(true);
+      showToast(`Opened "${file.name}" — SQLite verified (edits save to browser storage; use Download or picker to update the .db file on disk)`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to open SQLite file";
       showToast(msg);
@@ -117,7 +122,29 @@ export default function Home() {
     const blankName = `hisaab-kitaab-blank-${new Date().toISOString().slice(0, 10)}.db`;
     try {
       const bytes = await createBlankDBBytes();
-      // make the blank DB the active one in IndexedDB — so import goes to the blank file
+      if ('showSaveFilePicker' in window) {
+        try {
+          const handle = await (window as any).showSaveFilePicker({
+            suggestedName: blankName,
+            types: [{ description: 'SQLite Database', accept: { 'application/x-sqlite3': ['.db', '.sqlite', '.sqlite3'] } }],
+          });
+          const writable = await handle.createWritable();
+          await writable.write(bytes);
+          await writable.close();
+          localStorage.setItem(LAST_DB_KEY, blankName);
+          setLastDb(blankName);
+          await openDBFromFile(new File([bytes as any], blankName, { type: 'application/x-sqlite3' }), handle);
+          setDbReady(true);
+          showToast(`Blank SQLite saved via picker — "${blankName}" (edits write directly to this file)`);
+          return;
+        } catch (err: any) {
+          if (err?.name === 'AbortError') return;
+        }
+      }
+      // Fallback anchor: set key first so IndexedDB entry is per-file
+      localStorage.setItem(LAST_DB_KEY, blankName);
+      setLastDb(blankName);
+      setDbReady(true);
       await setDBFromBytes(bytes);
       const blob = new Blob([bytes as unknown as BlobPart], { type: "application/x-sqlite3" });
       const url = URL.createObjectURL(blob);
@@ -126,8 +153,7 @@ export default function Home() {
       a.download = blankName;
       a.click();
       URL.revokeObjectURL(url);
-      enterDashboard(blankName);
-      showToast(`Blank SQLite downloaded — "${blankName}"`);
+      showToast(`Blank SQLite downloaded — "${blankName}" (re-open via picker for direct file writes; otherwise re-download after edits)`);
     } catch {
       showToast("Failed to create blank SQLite");
     }
@@ -199,15 +225,20 @@ export default function Home() {
 
   return (
     <div className="h-screen max-h-[100vh] overflow-hidden bg-[var(--color-canvas-dark)] text-[var(--color-body)] flex">
-      <Sidebar active={active} onChange={setActive} collapsed={collapsed} onToggle={() => setCollapsed((v) => !v)} />
+      <Sidebar 
+        active={active} 
+        onChange={setActive} 
+        collapsed={collapsed} 
+        onToggle={() => setCollapsed((v) => !v)}
+        onSwitchDb={() => setDbReady(false)}
+        onCloseDb={() => {
+          localStorage.removeItem(LAST_DB_KEY);
+          setLastDb(null);
+          setDbReady(false);
+          window.location.reload();
+        }}
+      />
       <div className="flex-1 min-w-0 flex flex-col h-screen max-h-[100vh] overflow-hidden pb-[64px] sm:pb-0">
-        <div className="h-[44px] shrink-0 bg-[var(--color-surface-card-dark)] border-b border-[var(--color-hairline-on-dark)] flex items-center justify-between px-4">
-          <span className="text-[11px] font-bold tracking-wide text-[var(--color-muted)] uppercase">
-            {active === "dashboard" ? "Dashboard" : active === "transactions" ? "Transactions" : active === "accounts" ? "Accounts" : "Category"}
-            <span className="ml-2 font-normal normal-case text-[var(--color-muted-strong)] hidden sm:inline">— {lastDb}</span>
-          </span>
-          <button onClick={() => setDbReady(false)} className="text-[11px] font-bold text-[var(--color-muted-strong)] hover:text-white border border-[var(--color-hairline-on-dark)] rounded-full px-3 py-1 hover:border-[var(--color-primary)]/20 transition">Switch DB</button>
-        </div>
         <main className="flex-1 min-h-0 overflow-hidden bg-[var(--color-canvas-dark)] flex flex-col">
           {active === "dashboard" && <DashboardPage />}
           {active === "transactions" && <TransactionsPage />}

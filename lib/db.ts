@@ -12,6 +12,15 @@ let fileHandle: any = null;
 const IDB_NAME = "HisaabKitaab";
 const IDB_STORE = "sqlite";
 const IDB_KEY = "main";
+const LAST_DB_KEY = "hk_last_db_name";
+
+function getIDBKey(): string {
+  try {
+    return localStorage.getItem(LAST_DB_KEY) || IDB_KEY;
+  } catch {
+    return IDB_KEY;
+  }
+}
 
 // ---------- IndexedDB helpers ----------
 function openIDB(): Promise<IDBDatabase> {
@@ -29,10 +38,11 @@ function openIDB(): Promise<IDBDatabase> {
 async function idbGet(): Promise<Uint8Array | null> {
   if (typeof indexedDB === "undefined") return null;
   const idb = await openIDB();
+  const key = getIDBKey();
   return new Promise((resolve, reject) => {
     const tx = idb.transaction(IDB_STORE, "readonly");
     const store = tx.objectStore(IDB_STORE);
-    const req = store.get(IDB_KEY);
+    const req = store.get(key);
     req.onsuccess = () => {
       const v = req.result as Uint8Array | ArrayBuffer | null;
       if (!v) return resolve(null);
@@ -52,10 +62,11 @@ async function idbGet(): Promise<Uint8Array | null> {
 async function idbPut(bytes: Uint8Array): Promise<void> {
   if (typeof indexedDB === "undefined") return;
   const idb = await openIDB();
+  const key = getIDBKey();
   return new Promise((resolve, reject) => {
     const tx = idb.transaction(IDB_STORE, "readwrite");
     const store = tx.objectStore(IDB_STORE);
-    const req = store.put(bytes, IDB_KEY);
+    const req = store.put(bytes, key);
     req.onsuccess = () => resolve();
     req.onerror = () => reject(req.error);
   });

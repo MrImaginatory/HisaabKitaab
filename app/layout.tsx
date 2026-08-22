@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono, IBM_Plex_Sans } from "next/font/google";
 import "./globals.css";
 
@@ -23,10 +23,22 @@ const ibmPlexSans = IBM_Plex_Sans({
   display: "swap",
 });
 
+export const viewport: Viewport = {
+  themeColor: "#181a20",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
+
 export const metadata: Metadata = {
-  title: "Hisaab Kitaab — Local-First Ledger",
-  description:
-    "100% local SQLite hisaab kitaab. No server, no sync, no data leaves your device. Binance-dark financial precision meets khata simplicity.",
+  title: process.env.NEXT_PUBLIC_APP_NAME || "Hisaab Kitaab",
+  description: process.env.NEXT_PUBLIC_APP_DESCRIPTION || "Local SQLite finance manager.",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: process.env.NEXT_PUBLIC_APP_NAME || "Hisaab Kitaab",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
