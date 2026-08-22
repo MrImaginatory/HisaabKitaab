@@ -134,6 +134,8 @@ function ensureSchema(database: any) {
       createdAt INTEGER NOT NULL
     );
   `);
+  // migrate: add accountNumber column if missing
+  try { database.run(`ALTER TABLE accounts ADD COLUMN accountNumber TEXT NOT NULL DEFAULT ''`); } catch {}
   // migrate legacy rows to lowercase (spec: everything saved lowercase)
   try {
     database.run(`UPDATE categories SET name = lower(name), nameKey = lower(nameKey), type = lower(type), color = lower(color) WHERE lower(name) != name OR lower(nameKey) != nameKey OR lower(type) != type OR lower(color) != color`);
@@ -152,6 +154,50 @@ function ensureSchema(database: any) {
       notes TEXT NOT NULL,
       date TEXT NOT NULL,
       createdAt INTEGER NOT NULL
+    );
+  `);
+  // migrate: add paymentMediumId column if missing
+  try { database.run(`ALTER TABLE transactions ADD COLUMN paymentMediumId TEXT NOT NULL DEFAULT ''`); } catch {}
+
+  // --- payment mediums ---
+  database.run(`
+    CREATE TABLE IF NOT EXISTS payment_mediums (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      grp TEXT NOT NULL CHECK(grp IN ('online','offline')),
+      createdAt INTEGER NOT NULL
+    );
+  `);
+  // seed defaults if empty
+  try {
+    const cnt = database.exec("SELECT COUNT(*) FROM payment_mediums");
+    if (!cnt.length || cnt[0].values[0][0] === 0) {
+      const now = Date.now();
+      const seeds: [string, string, string, number][] = [
+        ["pm_upi", "upi", "online", now],
+        ["pm_netbanking", "net banking", "online", now + 1],
+        ["pm_cc", "credit card", "online", now + 2],
+        ["pm_dc", "debit card", "online", now + 3],
+        ["pm_wallet", "wallet", "online", now + 4],
+        ["pm_cash", "cash", "offline", now + 5],
+        ["pm_cheque", "cheque", "offline", now + 6],
+        ["pm_dd", "demand draft", "offline", now + 7],
+      ];
+      for (const [id, name, grp, ts] of seeds) {
+        database.run("INSERT OR IGNORE INTO payment_mediums (id, name, grp, createdAt) VALUES (?, ?, ?, ?)", [id, name, grp, ts]);
+      }
+    }
+  } catch {}
+
+  // --- profile (single row) ---
+  database.run(`
+    CREATE TABLE IF NOT EXISTS profile (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      name TEXT NOT NULL DEFAULT '',
+      address TEXT NOT NULL DEFAULT '',
+      email TEXT NOT NULL DEFAULT '',
+      contact TEXT NOT NULL DEFAULT '',
+      watermark TEXT NOT NULL DEFAULT ''
     );
   `);
 }
@@ -377,6 +423,7 @@ export interface MainAccount {
   nameKey: string;
   openingBalance: number;
   description: string;
+  accountNumber: string;
   date: string; // ISO YYYY-MM-DD
   createdAt: number;
 }
@@ -386,7 +433,7 @@ export type ComputedAccount = MainAccount & { currentBalance: number };
 export async function dbGetAccounts(): Promise<ComputedAccount[]> {
   const d = await getDB();
   const res = d.exec(`
-    SELECT a.id, a.name, a.nameKey, a.openingBalance, a.description, a.date, a.createdAt,
+    SELECT a.id, a.name, a.nameKey, a.openingBalance, a.description, a.accountNumber, a.date, a.createdAt,
       (a.openingBalance + 
        COALESCE((SELECT SUM(amount) FROM transactions WHERE accountId = a.id AND type = 'income'), 0) - 
        COALESCE((SELECT SUM(amount) FROM transactions WHERE accountId = a.id AND type = 'expense'), 0)
@@ -421,16 +468,18 @@ export async function dbAddAccount(a: Omit<MainAccount, "id" | "nameKey" | "crea
     nameKey: key,
     openingBalance: Number(a.openingBalance),
     description,
+    accountNumber: (a.accountNumber ?? "").trim(),
     date: a.date,
     createdAt: Date.now(),
   };
   try {
-    d.run("INSERT INTO accounts (id, name, nameKey, openingBalance, description, date, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)", [
+    d.run("INSERT INTO accounts (id, name, nameKey, openingBalance, description, accountNumber, date, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [
       acc.id,
       acc.name,
       acc.nameKey,
       acc.openingBalance,
       acc.description,
+      acc.accountNumber,
       acc.date,
       acc.createdAt,
     ]);
@@ -464,14 +513,117 @@ export async function dbUpdateAccount(id: string, a: Omit<MainAccount, "id" | "n
   if (dup.length && dup[0].values.length) return { ok: false, error: `Account "${rawName}" already exists` };
 
   try {
-    d.run("UPDATE accounts SET name = ?, nameKey = ?, openingBalance = ?, description = ?, date = ? WHERE id = ?", [
-      name, key, a.openingBalance, description, a.date, id
+    d.run("UPDATE accounts SET name = ?, nameKey = ?, openingBalance = ?, description = ?, accountNumber = ?, date = ? WHERE id = ?", [
+      name, key, a.openingBalance, description, (a.accountNumber ?? "").trim(), a.date, id
     ]);
     await saveDB();
-    return { ok: true, account: { id, name, nameKey: key, openingBalance: a.openingBalance, description, date: a.date, createdAt: 0 } };
+    return { ok: true, account: { id, name, nameKey: key, openingBalance: a.openingBalance, description, accountNumber: (a.accountNumber ?? "").trim(), date: a.date, createdAt: 0 } };
   } catch (e: any) {
     const msg = e?.message ?? String(e);
     return { ok: false, error: msg };
+  }
+}
+
+// ---------- Profile helpers ----------
+export interface UserProfile {
+  name: string;
+  address: string;
+  email: string;
+  contact: string;
+  watermark: string;
+}
+
+const PROFILE_DEFAULT: UserProfile = { name: "", address: "", email: "", contact: "", watermark: "" };
+
+export async function dbGetProfile(): Promise<UserProfile> {
+  const d = await getDB();
+  const res = d.exec("SELECT name, address, email, contact, watermark FROM profile WHERE id = 1");
+  if (!res.length || !res[0].values.length) return PROFILE_DEFAULT;
+  const row = res[0].values[0];
+  return {
+    name: String(row[0] ?? ""),
+    address: String(row[1] ?? ""),
+    email: String(row[2] ?? ""),
+    contact: String(row[3] ?? ""),
+    watermark: String(row[4] ?? ""),
+  };
+}
+
+export async function dbSetProfile(p: Partial<UserProfile>): Promise<{ ok: boolean; error?: string }> {
+  const current = await dbGetProfile();
+  const merged = { ...current, ...p };
+  const d = await getDB();
+  try {
+    d.run("INSERT OR REPLACE INTO profile (id, name, address, email, contact, watermark) VALUES (1, ?, ?, ?, ?, ?)", [
+      merged.name, merged.address, merged.email, merged.contact, merged.watermark
+    ]);
+    await saveDB();
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: e?.message ?? String(e) };
+  }
+}
+
+// ---------- Payment Mediums helpers ----------
+export type PaymentMediumGroup = "online" | "offline";
+
+export interface PaymentMedium {
+  id: string;
+  name: string;
+  group: PaymentMediumGroup;
+  createdAt: number;
+}
+
+export async function dbGetPaymentMediums(): Promise<PaymentMedium[]> {
+  const d = await getDB();
+  const res = d.exec("SELECT id, name, grp, createdAt FROM payment_mediums ORDER BY grp, createdAt");
+  if (!res.length) return [];
+  const cols = res[0].columns as string[];
+  const vals = res[0].values as any[][];
+  return vals.map((row) => {
+    const o: any = {};
+    cols.forEach((c, i) => (o[c] = row[i]));
+    if ("grp" in o) { o.group = o.grp; delete o.grp; }
+    return o as PaymentMedium;
+  });
+}
+
+export async function dbAddPaymentMedium(name: string, group: PaymentMediumGroup): Promise<{ ok: boolean; error?: string; medium?: PaymentMedium }> {
+  const trimmed = name.trim().toLowerCase();
+  if (!trimmed) return { ok: false, error: "Name is required" };
+  const id = `pm_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  const med: PaymentMedium = { id, name: trimmed, group, createdAt: Date.now() };
+  const d = await getDB();
+  try {
+    d.run("INSERT INTO payment_mediums (id, name, grp, createdAt) VALUES (?, ?, ?, ?)", [med.id, med.name, med.group, med.createdAt]);
+    await saveDB();
+    return { ok: true, medium: med };
+  } catch (e: any) {
+    return { ok: false, error: e?.message ?? String(e) };
+  }
+}
+
+export async function dbUpdatePaymentMedium(id: string, name: string, group: PaymentMediumGroup): Promise<{ ok: boolean; error?: string }> {
+  const trimmed = name.trim().toLowerCase();
+  if (!trimmed) return { ok: false, error: "Name is required" };
+  const d = await getDB();
+  try {
+    d.run("UPDATE payment_mediums SET name = ?, grp = ? WHERE id = ?", [trimmed, group, id]);
+    await saveDB();
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: e?.message ?? String(e) };
+  }
+}
+
+export async function dbDeletePaymentMedium(id: string): Promise<{ ok: boolean; error?: string }> {
+  const d = await getDB();
+  try {
+    d.run("DELETE FROM payment_mediums WHERE id = ?", [id]);
+    await saveDB();
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: e?.message ?? String(e) };
   }
 }
 
@@ -482,6 +634,7 @@ export interface Transaction {
   amount: number;
   accountId: string;
   categoryId: string;
+  paymentMediumId: string;
   reason: string;
   notes: string;
   date: string;
@@ -490,7 +643,7 @@ export interface Transaction {
 
 export async function dbGetTransactions(): Promise<Transaction[]> {
   const d = await getDB();
-  const res = d.exec("SELECT id, type, amount, accountId, categoryId, reason, notes, date, createdAt FROM transactions ORDER BY date DESC, createdAt DESC");
+  const res = d.exec("SELECT id, type, amount, accountId, categoryId, paymentMediumId, reason, notes, date, createdAt FROM transactions ORDER BY date DESC, createdAt DESC");
   if (!res.length) return [];
   const cols = res[0].columns as string[];
   const vals = res[0].values as any[][];
@@ -514,6 +667,7 @@ export async function dbAddTransaction(t: Omit<Transaction, "id" | "createdAt">)
     amount: Number(t.amount),
     accountId: t.accountId,
     categoryId: t.categoryId,
+    paymentMediumId: t.paymentMediumId ?? "",
     reason: t.reason.trim().slice(0, 50),
     notes: t.notes.trim().slice(0, 1000),
     date: t.date,
@@ -522,8 +676,8 @@ export async function dbAddTransaction(t: Omit<Transaction, "id" | "createdAt">)
 
   const d = await getDB();
   try {
-    d.run("INSERT INTO transactions (id, type, amount, accountId, categoryId, reason, notes, date, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", [
-      trans.id, trans.type, trans.amount, trans.accountId, trans.categoryId, trans.reason, trans.notes, trans.date, trans.createdAt
+    d.run("INSERT INTO transactions (id, type, amount, accountId, categoryId, paymentMediumId, reason, notes, date, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+      trans.id, trans.type, trans.amount, trans.accountId, trans.categoryId, trans.paymentMediumId, trans.reason, trans.notes, trans.date, trans.createdAt
     ]);
     await saveDB();
     return { ok: true, transaction: trans };
@@ -547,11 +701,11 @@ export async function dbUpdateTransaction(id: string, t: Omit<Transaction, "id" 
 
   const d = await getDB();
   try {
-    d.run("UPDATE transactions SET type = ?, amount = ?, accountId = ?, categoryId = ?, reason = ?, notes = ?, date = ? WHERE id = ?", [
-      t.type, t.amount, t.accountId, t.categoryId, t.reason.trim().slice(0, 50), t.notes.trim().slice(0, 1000), t.date, id
+    d.run("UPDATE transactions SET type = ?, amount = ?, accountId = ?, categoryId = ?, paymentMediumId = ?, reason = ?, notes = ?, date = ? WHERE id = ?", [
+      t.type, t.amount, t.accountId, t.categoryId, t.paymentMediumId ?? "", t.reason.trim().slice(0, 50), t.notes.trim().slice(0, 1000), t.date, id
     ]);
     await saveDB();
-    return { ok: true, transaction: { id, type: t.type, amount: t.amount, accountId: t.accountId, categoryId: t.categoryId, reason: t.reason.trim().slice(0, 50), notes: t.notes.trim().slice(0, 1000), date: t.date, createdAt: 0 } };
+    return { ok: true, transaction: { id, type: t.type, amount: t.amount, accountId: t.accountId, categoryId: t.categoryId, paymentMediumId: t.paymentMediumId ?? "", reason: t.reason.trim().slice(0, 50), notes: t.notes.trim().slice(0, 1000), date: t.date, createdAt: 0 } };
   } catch (e: any) {
     return { ok: false, error: e?.message ?? String(e) };
   }

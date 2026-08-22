@@ -1,13 +1,16 @@
 "use client";
-import { LayoutDashboard, Receipt, Wallet, Tag, ChevronLeft, ChevronRight } from "lucide-react";
+import { LayoutDashboard, Receipt, Wallet, Tag, FileText, User, CreditCard, ChevronLeft, ChevronRight } from "lucide-react";
 
-export type PageKey = "dashboard" | "transactions" | "accounts" | "category";
+export type PageKey = "dashboard" | "transactions" | "accounts" | "category" | "paymentMedium" | "statement" | "profile";
 
 export const NAV = [
   { key: "dashboard" as PageKey, label: "Dashboard", icon: LayoutDashboard },
   { key: "transactions" as PageKey, label: "Transactions", icon: Receipt },
   { key: "accounts" as PageKey, label: "Accounts", icon: Wallet },
   { key: "category" as PageKey, label: "Category", icon: Tag },
+  { key: "paymentMedium" as PageKey, label: "Payment Medium", icon: CreditCard },
+  { key: "statement" as PageKey, label: "Statement", icon: FileText },
+  { key: "profile" as PageKey, label: "Profile", icon: User },
 ];
 
 export function Sidebar({

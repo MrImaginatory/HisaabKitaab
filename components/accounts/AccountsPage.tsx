@@ -25,6 +25,7 @@ export function AccountsPage() {
   const [name, setName] = useState("");
   const [balance, setBalance] = useState("");
   const [desc, setDesc] = useState("");
+  const [accNum, setAccNum] = useState("");
   const [date, setDate] = useState<string>(() => todayISO());
   const [formErr, setFormErr] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
@@ -53,11 +54,11 @@ export function AccountsPage() {
     setFormErr(null);
     const opening = balance.trim() === "" ? NaN : Number(balance);
     if (editId) {
-      const res = await dbUpdateAccount(editId, { name, openingBalance: opening, description: desc, date });
+      const res = await dbUpdateAccount(editId, { name, openingBalance: opening, description: desc, accountNumber: accNum, date });
       if (!res.ok) { setFormErr(res.error ?? "Failed"); return; }
       showToast(`Updated account "${displayName(res.account?.name ?? name)}"`);
     } else {
-      const res = await dbAddAccount({ name, openingBalance: opening, description: desc, date });
+      const res = await dbAddAccount({ name, openingBalance: opening, description: desc, accountNumber: accNum, date });
       if (!res.ok) { setFormErr(res.error ?? "Failed"); return; }
       showToast(`Added account "${displayName(res.account?.name ?? name)}"`);
     }
@@ -70,6 +71,7 @@ export function AccountsPage() {
     setName("");
     setBalance("");
     setDesc("");
+    setAccNum("");
     setDate(todayISO());
     setFormErr(null);
     setIsAddOpen(true);
@@ -80,6 +82,7 @@ export function AccountsPage() {
     setName(displayName(a.name));
     setBalance(String(a.openingBalance));
     setDesc(displayName(a.description));
+    setAccNum(a.accountNumber ?? "");
     setDate(a.date);
     setFormErr(null);
     setIsAddOpen(true);
@@ -168,6 +171,7 @@ export function AccountsPage() {
       <Dialog open={isAddOpen} onClose={() => setIsAddOpen(false)} title={editId ? "Edit main account" : "Add main account"} showClose maxWidth="max-w-[480px]">
         <div className="flex flex-col gap-4">
           <Input label="Account name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. HDFC Savings, Cash, Wallet" />
+          <Input label="Account number" value={accNum} onChange={(e) => setAccNum(e.target.value)} placeholder="Optional — last 6 digits shown in PDF" />
           <Input label="Opening balance" value={balance} onChange={(e) => setBalance(e.target.value)} placeholder="e.g. 50000" inputMode="decimal" type="text" />
           <Textarea label="Description" value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Optional note — e.g. Salary account, personal cash" rows={2} />
           <DatePicker label="Date" value={date} onChange={setDate} placeholder="Pick date" />

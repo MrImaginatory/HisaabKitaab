@@ -21,9 +21,10 @@ export function DashboardPage() {
   });
   const [recentTxns, setRecentTxns] = useState<Transaction[]>([]);
   const [recentIncome, setRecentIncome] = useState<Transaction[]>([]);
-  const [, setAccounts] = useState<ComputedAccount[]>([]);
+  const [accounts, setAccounts] = useState<ComputedAccount[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [txns, setTxns] = useState<Transaction[]>([]);
+  const [selectedAccount, setSelectedAccount] = useState("all");
 
   // ---- Spend analytics period filter (default: this month) ----
   const [period, setPeriod] = useState<PeriodPreset>("thisMonth");
@@ -92,10 +93,27 @@ export function DashboardPage() {
 
   const categoryMap = useMemo(() => new Map(categories.map(c => [c.id, c])), [categories]);
 
-  // ---- Analytics computations (expense-only, within selected range) ----
+  // Earliest transaction date for min-date constraint
+  const minDate = useMemo(() => {
+    if (txns.length === 0) return undefined;
+    return txns.reduce((min, t) => t.date < min ? t.date : min, txns[0].date);
+  }, [txns]);
+
+  // Account filter options
+  const accountOptions = useMemo(() => [
+    { value: "all", label: "All Accounts" },
+    ...accounts.map(a => ({ value: a.id, label: displayName(a.name) })),
+  ], [accounts]);
+
+  // ---- Analytics computations (expense-only, within selected range, filtered by account) ----
   const expensesInRange = useMemo(
-    () => txns.filter(t => t.type === "expense" && t.date >= range.start && t.date <= range.end),
-    [txns, range]
+    () => txns.filter(t => {
+      if (t.type !== "expense") return false;
+      if (t.date < range.start || t.date > range.end) return false;
+      if (selectedAccount !== "all" && t.accountId !== selectedAccount) return false;
+      return true;
+    }),
+    [txns, range, selectedAccount]
   );
 
   const totalSpent = useMemo(() => expensesInRange.reduce((s, t) => s + t.amount, 0), [expensesInRange]);
@@ -244,15 +262,25 @@ export function DashboardPage() {
             />
           </div>
 
+          {/* Account filter */}
+          <div className="w-[180px]">
+            <Select
+              value={selectedAccount}
+              onChange={setSelectedAccount}
+              options={accountOptions}
+              ariaLabel="Filter by account"
+            />
+          </div>
+
           {/* Custom range pickers */}
           {period === "custom" && (
             <>
               <div className="w-[150px]">
-                <DatePicker label="" value={customFrom} onChange={(v) => { setCustomFrom(v); }} placeholder="From" />
+                <DatePicker label="" value={customFrom} onChange={(v) => { setCustomFrom(v); }} placeholder="From" min={minDate} />
               </div>
               <span className="text-[11px] font-bold text-[var(--color-muted)]">→</span>
               <div className="w-[150px]">
-                <DatePicker label="" value={customTo} onChange={(v) => { setCustomTo(v); }} placeholder="To" />
+                <DatePicker label="" value={customTo} onChange={(v) => { setCustomTo(v); }} placeholder="To" min={minDate} />
               </div>
             </>
           )}

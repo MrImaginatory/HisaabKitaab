@@ -7,8 +7,12 @@ import { CategoryPage } from "@/components/category/CategoryPage";
 import { AccountsPage } from "@/components/accounts/AccountsPage";
 import { TransactionsPage } from "@/components/transactions/TransactionsPage";
 import { DashboardPage } from "@/components/dashboard/DashboardPage";
+import { StatementPage } from "@/components/statement/StatementPage";
+import { ProfilePage } from "@/components/profile/ProfilePage";
+import { PaymentMediumPage } from "@/components/payment-medium/PaymentMediumPage";
 import { SettingsPanel } from "@/components/settings/SettingsPanel";
 import { applyTheme, getStoredAccent, getStoredMode } from "@/lib/theme";
+import { loadProfileFromDB } from "@/lib/profile";
 import { createBlankDBBytes, downloadCurrentDB, openDBFromFile, getDB, setDBFromBytes, reconnectDB } from "@/lib/db";
 
 const LAST_DB_KEY = "hk_last_db_name";
@@ -49,6 +53,7 @@ export default function Home() {
     }
     setHydrated(true);
     applyTheme(getStoredMode(), getStoredAccent());
+    loadProfileFromDB().catch(() => {});
     getDB().catch(() => {});
   }, []);
 
@@ -244,6 +249,9 @@ export default function Home() {
           {active === "transactions" && <TransactionsPage />}
           {active === "accounts" && <AccountsPage />}
           {active === "category" && <CategoryPage />}
+          {active === "paymentMedium" && <PaymentMediumPage />}
+          {active === "statement" && <StatementPage />}
+          {active === "profile" && <ProfilePage />}
         </main>
       </div>
 

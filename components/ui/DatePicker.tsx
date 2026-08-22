@@ -8,6 +8,8 @@ interface DatePickerProps {
   value: string; // YYYY-MM-DD
   onChange: (iso: string) => void;
   placeholder?: string;
+  min?: string; // YYYY-MM-DD — earliest selectable date
+  max?: string; // YYYY-MM-DD — latest selectable date
 }
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -32,7 +34,7 @@ function fmtDisplay(iso: string) {
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-export function DatePicker({ label, value, onChange, placeholder = "Pick a date" }: DatePickerProps) {
+export function DatePicker({ label, value, onChange, placeholder = "Pick a date", min, max }: DatePickerProps) {
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const [rect, setRect] = useState<DOMRect | null>(null);
@@ -81,20 +83,24 @@ export function DatePicker({ label, value, onChange, placeholder = "Pick a date"
   const daysInPrev = new Date(viewYear, viewMonth, 0).getDate();
   const todayISO = toISO(new Date());
 
-  const cells: { day: number; iso: string; muted: boolean }[] = [];
+  const cells: { day: number; iso: string; muted: boolean; disabled: boolean }[] = [];
+  const isDisabled = (iso: string) => (min != null && iso < min) || (max != null && iso > max);
   for (let i = firstDowMon0 - 1; i >= 0; i--) {
     const d = daysInPrev - i;
     const dt = new Date(viewYear, viewMonth - 1, d);
-    cells.push({ day: d, iso: toISO(dt), muted: true });
+    const iso = toISO(dt);
+    cells.push({ day: d, iso, muted: true, disabled: isDisabled(iso) });
   }
   for (let d = 1; d <= daysInMonth; d++) {
-    cells.push({ day: d, iso: toISO(new Date(viewYear, viewMonth, d)), muted: false });
+    const iso = toISO(new Date(viewYear, viewMonth, d));
+    cells.push({ day: d, iso, muted: false, disabled: isDisabled(iso) });
   }
   while (cells.length % 7 !== 0 || cells.length < 35) {
     const extra = cells.length - (firstDowMon0 + daysInMonth);
     const d = extra + 1;
     const dt = new Date(viewYear, viewMonth + 1, d);
-    cells.push({ day: d, iso: toISO(dt), muted: true });
+    const iso = toISO(dt);
+    cells.push({ day: d, iso, muted: true, disabled: isDisabled(iso) });
     if (cells.length >= 42) break;
   }
   // trim to exactly 35 if we have 6 weeks unnecessary
@@ -146,9 +152,10 @@ export function DatePicker({ label, value, onChange, placeholder = "Pick a date"
                     <button
                       key={c.iso}
                       type="button"
-                      onClick={() => { onChange(c.iso); setOpen(false); }}
+                      disabled={c.disabled}
+                      onClick={() => { if (!c.disabled) { onChange(c.iso); setOpen(false); } }}
                       className={`h-8 rounded-[8px] text-[12px] font-medium flex items-center justify-center border transition
-                        ${isSelected ? "bg-[var(--color-primary)] text-[var(--color-on-primary)] border-[var(--color-primary)] font-bold" : isToday ? "bg-[var(--color-surface-elevated-dark)] text-white border-[var(--color-primary)]/30" : c.muted ? "text-[var(--color-muted)]/50 border-transparent hover:bg-[var(--color-surface-elevated-dark)] hover:text-white" : "text-white border-transparent hover:bg-[var(--color-surface-elevated-dark)]"}`}
+                        ${c.disabled ? "text-[var(--color-muted)]/25 border-transparent cursor-not-allowed" : isSelected ? "bg-[var(--color-primary)] text-[var(--color-on-primary)] border-[var(--color-primary)] font-bold" : isToday ? "bg-[var(--color-surface-elevated-dark)] text-white border-[var(--color-primary)]/30" : c.muted ? "text-[var(--color-muted)]/50 border-transparent hover:bg-[var(--color-surface-elevated-dark)] hover:text-white" : "text-white border-transparent hover:bg-[var(--color-surface-elevated-dark)]"}`}
                     >
                       {c.day}
                     </button>

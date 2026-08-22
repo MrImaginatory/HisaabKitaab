@@ -7,7 +7,7 @@ import { Input, Textarea } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { DataTable, ColumnDef } from "@/components/ui/DataTable";
-import { Transaction, dbGetTransactions, dbAddTransaction, dbUpdateTransaction, dbDeleteTransaction, ComputedAccount, dbGetAccounts, Category, dbGetCategories, CategoryType } from "@/lib/db";
+import { Transaction, dbGetTransactions, dbAddTransaction, dbUpdateTransaction, dbDeleteTransaction, ComputedAccount, dbGetAccounts, Category, dbGetCategories, CategoryType, PaymentMedium, PaymentMediumGroup, dbGetPaymentMediums } from "@/lib/db";
 import { displayName } from "@/lib/stringUtils";
 
 function todayISO() {
@@ -22,6 +22,7 @@ export function TransactionsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [accounts, setAccounts] = useState<ComputedAccount[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [paymentMediums, setPaymentMediums] = useState<PaymentMedium[]>([]);
   const [loading, setLoading] = useState(true);
   
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -35,19 +36,23 @@ export function TransactionsPage() {
   const [amount, setAmount] = useState("");
   const [accountId, setAccountId] = useState("");
   const [categoryId, setCategoryId] = useState("");
+  const [paymentGroup, setPaymentGroup] = useState<PaymentMediumGroup>("online");
+  const [paymentMediumId, setPaymentMediumId] = useState("");
   const [reason, setReason] = useState("");
   const [notes, setNotes] = useState("");
   const [date, setDate] = useState(todayISO());
 
   const refresh = async () => {
-    const [txns, accs, cats] = await Promise.all([
+    const [txns, accs, cats, meds] = await Promise.all([
       dbGetTransactions(),
       dbGetAccounts(),
-      dbGetCategories()
+      dbGetCategories(),
+      dbGetPaymentMediums()
     ]);
     setTransactions(txns);
     setAccounts(accs);
     setCategories(cats);
+    setPaymentMediums(meds);
   };
 
   useEffect(() => {
@@ -69,6 +74,8 @@ export function TransactionsPage() {
     setAmount("");
     setAccountId(accounts.length > 0 ? accounts[0].id : "");
     setCategoryId("");
+    setPaymentGroup("online");
+    setPaymentMediumId("");
     setReason("");
     setNotes("");
     setDate(todayISO());
@@ -82,6 +89,10 @@ export function TransactionsPage() {
     setAmount(String(t.amount));
     setAccountId(t.accountId);
     setCategoryId(t.categoryId);
+    // derive group from the medium
+    const med = paymentMediums.find(m => m.id === t.paymentMediumId);
+    setPaymentGroup(med?.group ?? "online");
+    setPaymentMediumId(t.paymentMediumId ?? "");
     setReason(t.reason);
     setNotes(t.notes);
     setDate(t.date);
@@ -96,6 +107,7 @@ export function TransactionsPage() {
       amount: Number(amount),
       accountId,
       categoryId,
+      paymentMediumId,
       reason,
       notes,
       date,
@@ -324,6 +336,26 @@ export function TransactionsPage() {
                 onChange={setCategoryId} 
                 options={filteredCategories.map(c => ({ value: c.id, label: displayName(c.name) }))} 
                 ariaLabel="Select Category" 
+              />
+            </label>
+          </div>
+
+          {/* Payment Medium: two-level selector */}
+          <div className="grid grid-cols-2 gap-3">
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[11px] font-bold tracking-wide text-[var(--color-muted)] uppercase">Payment Type</span>
+              <div className="flex items-center p-1 rounded-[8px] bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)]">
+                <button onClick={() => { setPaymentGroup("online"); setPaymentMediumId(""); }} className={`flex-1 py-1.5 text-[11px] font-bold rounded-[6px] transition ${paymentGroup === "online" ? "bg-[var(--color-accent)]/20 text-[var(--color-accent)] shadow-sm" : "text-[var(--color-muted)] hover:text-white"}`}>Online</button>
+                <button onClick={() => { setPaymentGroup("offline"); setPaymentMediumId(""); }} className={`flex-1 py-1.5 text-[11px] font-bold rounded-[6px] transition ${paymentGroup === "offline" ? "bg-[var(--color-trading-up)]/20 text-[var(--color-trading-up)] shadow-sm" : "text-[var(--color-muted)] hover:text-white"}`}>Offline</button>
+              </div>
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[11px] font-bold tracking-wide text-[var(--color-muted)] uppercase">Payment Medium</span>
+              <Select
+                value={paymentMediumId}
+                onChange={setPaymentMediumId}
+                options={paymentMediums.filter(m => m.group === paymentGroup).map(m => ({ value: m.id, label: displayName(m.name) }))}
+                ariaLabel="Select Payment Medium"
               />
             </label>
           </div>

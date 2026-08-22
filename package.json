@@ -10,12 +10,15 @@
   },
   "dependencies": {
     "@serwist/next": "^9.5.12",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
     "lucide-react": "^1.33.0",
     "next": "16.3.1",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "serwist": "^9.5.12",
-    "sql.js": "^1.14.2"
+    "sql.js": "^1.14.2",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
