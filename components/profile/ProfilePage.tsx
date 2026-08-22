@@ -10,6 +10,8 @@ export function ProfilePage() {
     email: "",
     contact: "",
     watermark: "",
+    currencyName: "",
+    currencySymbol: "",
   });
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -59,7 +61,7 @@ export function ProfilePage() {
               type="text"
               value={profile.name}
               onChange={e => update("name", e.target.value)}
-              placeholder="e.g. Prabhat Kumar"
+              placeholder="e.g. John Doe"
               className={`${inputCls} mt-1.5`}
             />
           </div>
@@ -70,7 +72,7 @@ export function ProfilePage() {
             <textarea
               value={profile.address}
               onChange={e => update("address", e.target.value)}
-              placeholder="e.g. 123 Main St, Delhi, India"
+              placeholder="e.g. 123 Main St, City, Country"
               rows={3}
               className={`${inputCls} mt-1.5 py-2 resize-none`}
             />
@@ -100,9 +102,47 @@ export function ProfilePage() {
                 onKeyDown={e => {
                   if (/^[a-zA-Z]$/.test(e.key) && !e.ctrlKey && !e.metaKey) e.preventDefault();
                 }}
-                placeholder="e.g. +91 98765 43210"
+                placeholder="e.g. +1 555 123 4567"
                 className={`${inputCls} mt-1.5`}
               />
+            </div>
+          </div>
+
+          {/* Currency */}
+          <div className="h-px bg-[var(--color-hairline-on-dark)]" />
+          <div>
+            <label className={labelCls}>Currency Format</label>
+            <p className="text-[11px] text-[var(--color-muted)] mt-1 mb-1.5">
+              Used in statements and PDF exports for formatting amounts.
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-[10px] font-bold text-[var(--color-muted)] uppercase">Currency Name</label>
+                <input
+                  type="text"
+                  value={profile.currencyName}
+                  onChange={e => update("currencyName", e.target.value)}
+                  placeholder="e.g. Indian Rupee, US Dollar"
+                  className={`${inputCls} mt-1.5`}
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-[var(--color-muted)] uppercase">Currency Symbol</label>
+                <input
+                  type="text"
+                  value={profile.currencySymbol}
+                  onChange={e => {
+                    const val = e.target.value;
+                    update("currencySymbol", val);
+                  }}
+                  onKeyDown={e => {
+                    if (e.key.length === 1 && !/^\p{Sc}$/u.test(e.key) && !e.ctrlKey && !e.metaKey) e.preventDefault();
+                  }}
+                  placeholder="e.g. ₹, $, €"
+                  className={`${inputCls} mt-1.5`}
+                  maxLength={3}
+                />
+              </div>
             </div>
           </div>
 

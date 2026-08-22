@@ -53,12 +53,13 @@ export function AccountsPage() {
   const handleSave = async () => {
     setFormErr(null);
     const opening = balance.trim() === "" ? NaN : Number(balance);
+    const cleanedAccNum = accNum.replace(/\D/g, "").slice(0, 6);
     if (editId) {
-      const res = await dbUpdateAccount(editId, { name, openingBalance: opening, description: desc, accountNumber: accNum, date });
+      const res = await dbUpdateAccount(editId, { name, openingBalance: opening, description: desc, accountNumber: cleanedAccNum, date });
       if (!res.ok) { setFormErr(res.error ?? "Failed"); return; }
       showToast(`Updated account "${displayName(res.account?.name ?? name)}"`);
     } else {
-      const res = await dbAddAccount({ name, openingBalance: opening, description: desc, accountNumber: accNum, date });
+      const res = await dbAddAccount({ name, openingBalance: opening, description: desc, accountNumber: cleanedAccNum, date });
       if (!res.ok) { setFormErr(res.error ?? "Failed"); return; }
       showToast(`Added account "${displayName(res.account?.name ?? name)}"`);
     }
@@ -170,10 +171,27 @@ export function AccountsPage() {
 
       <Dialog open={isAddOpen} onClose={() => setIsAddOpen(false)} title={editId ? "Edit main account" : "Add main account"} showClose maxWidth="max-w-[480px]">
         <div className="flex flex-col gap-4">
-          <Input label="Account name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. HDFC Savings, Cash, Wallet" />
-          <Input label="Account number" value={accNum} onChange={(e) => setAccNum(e.target.value)} placeholder="Optional — last 6 digits shown in PDF" />
-          <Input label="Opening balance" value={balance} onChange={(e) => setBalance(e.target.value)} placeholder="e.g. 50000" inputMode="decimal" type="text" />
-          <Textarea label="Description" value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Optional note — e.g. Salary account, personal cash" rows={2} />
+          <Input label="Account name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Savings, Cash, Wallet" />
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-bold tracking-wide text-[var(--color-muted)] uppercase">Account Number</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={accNum}
+              onChange={(e) => {
+                const filtered = e.target.value.replace(/\D/g, "").slice(0, 6);
+                setAccNum(filtered);
+              }}
+              onKeyDown={(e) => {
+                if (/^[a-zA-Z]$/.test(e.key) && !e.ctrlKey && !e.metaKey) e.preventDefault();
+              }}
+              placeholder="Last 6 digits"
+              maxLength={6}
+              className="w-full h-10 rounded-[8px] bg-[var(--color-canvas-dark)] border border-[var(--color-hairline-on-dark)] text-[13px] text-white px-3 font-num focus:outline-none focus:border-[var(--color-primary)]/40 placeholder:text-[var(--color-muted)] transition"
+            />
+          </label>
+          <Input label="Opening balance" value={balance} onChange={(e) => setBalance(e.target.value)} placeholder="e.g. 1000" inputMode="decimal" type="text" />
+          <Textarea label="Description" value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Optional note — e.g. Primary account, daily expenses" rows={2} />
           <DatePicker label="Date" value={date} onChange={setDate} placeholder="Pick date" />
           {formErr && <div className="text-[11px] font-semibold text-[var(--color-trading-down)] flex items-center gap-1.5"><AlertTriangle size={12} /> {formErr}</div>}
           <div className="pt-2 flex justify-end gap-2">

@@ -229,7 +229,7 @@ export function CategoryPage() {
 
       <Dialog open={isAddOpen} onClose={() => setIsAddOpen(false)} title={editId ? "Edit category" : "Add category"} showClose maxWidth="max-w-[420px]">
         <div className="flex flex-col gap-4">
-          <Input label="Category name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Groceries, Salary, Rent" />
+          <Input label="Category name" value={name} onChange={(e) => setName(e.target.value)}               placeholder="e.g. Food, Transport, Salary" />
           <label className="flex flex-col gap-1.5">
             <span className="text-[11px] font-bold tracking-wide text-[var(--color-muted)] uppercase">Type</span>
             <Select value={type} onChange={(v) => setType(v as CategoryType)} options={[{ value: "expense", label: "Expense" }, { value: "income", label: "Income" }]} ariaLabel="Category type" />

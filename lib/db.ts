@@ -197,9 +197,14 @@ function ensureSchema(database: any) {
       address TEXT NOT NULL DEFAULT '',
       email TEXT NOT NULL DEFAULT '',
       contact TEXT NOT NULL DEFAULT '',
-      watermark TEXT NOT NULL DEFAULT ''
+      watermark TEXT NOT NULL DEFAULT '',
+      currencyName TEXT NOT NULL DEFAULT '',
+      currencySymbol TEXT NOT NULL DEFAULT ''
     );
   `);
+  // migrate: add currency columns if missing
+  try { database.run(`ALTER TABLE profile ADD COLUMN currencyName TEXT NOT NULL DEFAULT ''`); } catch {}
+  try { database.run(`ALTER TABLE profile ADD COLUMN currencySymbol TEXT NOT NULL DEFAULT ''`); } catch {}
 }
 
 export async function setDBFromBytes(bytes: Uint8Array): Promise<void> {
@@ -531,13 +536,15 @@ export interface UserProfile {
   email: string;
   contact: string;
   watermark: string;
+  currencyName: string;
+  currencySymbol: string;
 }
 
-const PROFILE_DEFAULT: UserProfile = { name: "", address: "", email: "", contact: "", watermark: "" };
+const PROFILE_DEFAULT: UserProfile = { name: "", address: "", email: "", contact: "", watermark: "", currencyName: "", currencySymbol: "" };
 
 export async function dbGetProfile(): Promise<UserProfile> {
   const d = await getDB();
-  const res = d.exec("SELECT name, address, email, contact, watermark FROM profile WHERE id = 1");
+  const res = d.exec("SELECT name, address, email, contact, watermark, currencyName, currencySymbol FROM profile WHERE id = 1");
   if (!res.length || !res[0].values.length) return PROFILE_DEFAULT;
   const row = res[0].values[0];
   return {
@@ -546,6 +553,8 @@ export async function dbGetProfile(): Promise<UserProfile> {
     email: String(row[2] ?? ""),
     contact: String(row[3] ?? ""),
     watermark: String(row[4] ?? ""),
+    currencyName: String(row[5] ?? ""),
+    currencySymbol: String(row[6] ?? ""),
   };
 }
 
@@ -554,8 +563,8 @@ export async function dbSetProfile(p: Partial<UserProfile>): Promise<{ ok: boole
   const merged = { ...current, ...p };
   const d = await getDB();
   try {
-    d.run("INSERT OR REPLACE INTO profile (id, name, address, email, contact, watermark) VALUES (1, ?, ?, ?, ?, ?)", [
-      merged.name, merged.address, merged.email, merged.contact, merged.watermark
+    d.run("INSERT OR REPLACE INTO profile (id, name, address, email, contact, watermark, currencyName, currencySymbol) VALUES (1, ?, ?, ?, ?, ?, ?, ?)", [
+      merged.name, merged.address, merged.email, merged.contact, merged.watermark, merged.currencyName, merged.currencySymbol
     ]);
     await saveDB();
     return { ok: true };

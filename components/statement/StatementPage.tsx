@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { FileDown, ChevronLeft, ChevronRight, FileSpreadsheet, FileText, CalendarRange } from "lucide-react";
-import { dbGetTransactions, dbGetAccounts, dbGetCategories, Transaction, ComputedAccount, Category } from "@/lib/db";
+import { dbGetTransactions, dbGetAccounts, dbGetCategories, dbGetPaymentMediums, Transaction, ComputedAccount, Category, PaymentMedium } from "@/lib/db";
 import { displayName } from "@/lib/stringUtils";
 import { Select } from "@/components/ui/Select";
 import { DatePicker } from "@/components/ui/DatePicker";
@@ -16,6 +16,7 @@ export function StatementPage() {
   const [txns, setTxns] = useState<Transaction[]>([]);
   const [accounts, setAccounts] = useState<ComputedAccount[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [paymentMediums, setPaymentMediums] = useState<PaymentMedium[]>([]);
   const [page, setPage] = useState(0);
   const [selectedAccount, setSelectedAccount] = useState("all");
 
@@ -39,14 +40,16 @@ export function StatementPage() {
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const [txnsData, accsData, catsData] = await Promise.all([
+      const [txnsData, accsData, catsData, medsData] = await Promise.all([
         dbGetTransactions(),
         dbGetAccounts(),
         dbGetCategories(),
+        dbGetPaymentMediums(),
       ]);
       setTxns(txnsData);
       setAccounts(accsData);
       setCategories(catsData);
+      setPaymentMediums(medsData);
       setLoading(false);
     })();
   }, []);
@@ -56,6 +59,7 @@ export function StatementPage() {
 
   const categoryMap = useMemo(() => new Map(categories.map(c => [c.id, c])), [categories]);
   const accountMap = useMemo(() => new Map(accounts.map(a => [a.id, a])), [accounts]);
+  const paymentMediumMap = useMemo(() => new Map(paymentMediums.map(m => [m.id, m])), [paymentMediums]);
 
   // Earliest transaction date for min-date constraint
   const minDate = useMemo(() => {
@@ -104,24 +108,27 @@ export function StatementPage() {
 
       const cat = categoryMap.get(t.categoryId);
       const acc = accountMap.get(t.accountId);
+      const med = paymentMediumMap.get(t.paymentMediumId);
 
       return {
         date: t.date,
         category: displayName(cat?.name ?? "Unknown"),
         notes: t.reason,
+        paymentMode: med ? `${med.group === "online" ? "Online" : "Offline"} · ${displayName(med.name)}` : "",
         account: displayName(acc?.name ?? "Unknown"),
         credit: t.type === "income" ? t.amount : 0,
         debit: t.type === "expense" ? t.amount : 0,
         remaining: after,
       };
     });
-  }, [txns, accounts, range, categoryMap, accountMap, selectedAccount]);
+  }, [txns, accounts, range, categoryMap, accountMap, paymentMediumMap, selectedAccount]);
 
   const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const pageRows = rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   const totalCredit = rows.reduce((s, r) => s + r.credit, 0);
   const totalDebit = rows.reduce((s, r) => s + r.debit, 0);
+  const symbol = getProfile().currencySymbol || "\u20B9";
 
   // Accounts summary for PDF
   const accountsSummary: AccountSummary[] = useMemo(() => {
@@ -170,7 +177,7 @@ export function StatementPage() {
 
   const totalSpent = categorySpend.reduce((s, c) => s + c.value, 0);
 
-  const handlePDF = (useWatermark: boolean) => downloadPDF({
+  const handlePDF = async (useWatermark: boolean) => downloadPDF({
     rows, range, totalCredit, totalDebit,
     accounts: accountsSummary,
     categorySpend, dailySpend, totalSpent,
@@ -277,6 +284,7 @@ export function StatementPage() {
                     <th className="px-4 py-3 w-[100px]">Date</th>
                     <th className="px-4 py-3">Category</th>
                     <th className="px-4 py-3">Notes</th>
+                    <th className="px-4 py-3">Payment</th>
                     <th className="px-4 py-3">Account</th>
                     <th className="px-4 py-3 text-right">Credit</th>
                     <th className="px-4 py-3 text-right">Debit</th>
@@ -292,15 +300,16 @@ export function StatementPage() {
                         <td className="px-4 py-3 text-[12px] font-num text-white">{r.date}</td>
                         <td className="px-4 py-3 text-[12px] text-[var(--color-muted-strong)]">{r.category}</td>
                         <td className="px-4 py-3 text-[12px] text-[var(--color-muted-strong)] truncate max-w-[200px]" title={r.notes}>{r.notes}</td>
+                        <td className="px-4 py-3 text-[11px] text-[var(--color-muted-strong)]">{r.paymentMode || "—"}</td>
                         <td className="px-4 py-3 text-[12px] text-[var(--color-muted-strong)]">{r.account}</td>
                         <td className="px-4 py-3 text-[12px] font-num text-right font-semibold text-[var(--color-trading-up)]">
-                          {r.credit > 0 ? `₹${r.credit.toLocaleString("en-IN")}` : "—"}
+                          {r.credit > 0 ? `${symbol}${r.credit.toLocaleString("en-IN")}` : "—"}
                         </td>
                         <td className="px-4 py-3 text-[12px] font-num text-right font-semibold text-[var(--color-trading-down)]">
-                          {r.debit > 0 ? `₹${r.debit.toLocaleString("en-IN")}` : "—"}
+                          {r.debit > 0 ? `${symbol}${r.debit.toLocaleString("en-IN")}` : "—"}
                         </td>
                         <td className="px-4 py-3 text-[12px] font-num text-right font-bold text-white">
-                          ₹{r.remaining.toLocaleString("en-IN")}
+                          {symbol}{r.remaining.toLocaleString("en-IN")}
                         </td>
                       </tr>
                     );
@@ -308,12 +317,12 @@ export function StatementPage() {
                 </tbody>
                 <tfoot className="bg-[var(--color-surface-elevated-dark)] border-t border-[var(--color-hairline-on-dark)]">
                   <tr>
-                    <td colSpan={5} className="px-4 py-3 text-[11px] font-bold text-[var(--color-muted)] uppercase">Total</td>
+                    <td colSpan={6} className="px-4 py-3 text-[11px] font-bold text-[var(--color-muted)] uppercase">Total</td>
                     <td className="px-4 py-3 text-[12px] font-num text-right font-bold text-[var(--color-trading-up)]">
-                      ₹{totalCredit.toLocaleString("en-IN")}
+                      {symbol}{totalCredit.toLocaleString("en-IN")}
                     </td>
                     <td className="px-4 py-3 text-[12px] font-num text-right font-bold text-[var(--color-trading-down)]">
-                      ₹{totalDebit.toLocaleString("en-IN")}
+                      {symbol}{totalDebit.toLocaleString("en-IN")}
                     </td>
                     <td className="px-4 py-3" />
                   </tr>

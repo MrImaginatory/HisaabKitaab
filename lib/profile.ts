@@ -10,6 +10,8 @@ const DEFAULT: UserProfile = {
   email: "",
   contact: "",
   watermark: "",
+  currencyName: "",
+  currencySymbol: "",
 };
 
 /** Sync read from localStorage cache. Used by exports.ts and StatementPage. */

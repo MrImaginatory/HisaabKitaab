@@ -147,18 +147,23 @@ export function TransactionsPage() {
     }
   }, [accounts, isAddOpen, accountId]);
 
+  const accountMap = useMemo(() => new Map(accounts.map(a => [a.id, a])), [accounts]);
+  const categoryMap = useMemo(() => new Map(categories.map(c => [c.id, c])), [categories]);
+  const paymentMediumMap = useMemo(() => new Map(paymentMediums.map(m => [m.id, m])), [paymentMediums]);
+
   const filteredTxns = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return transactions;
-    return transactions.filter(t => 
-      t.reason.toLowerCase().includes(q) || 
-      t.notes.toLowerCase().includes(q) ||
-      t.amount.toString().includes(q)
-    );
-  }, [transactions, query]);
-
-  const accountMap = useMemo(() => new Map(accounts.map(a => [a.id, a])), [accounts]);
-  const categoryMap = useMemo(() => new Map(categories.map(c => [c.id, c])), [categories]);
+    return transactions.filter(t => {
+      const med = paymentMediumMap.get(t.paymentMediumId);
+      return (
+        t.reason.toLowerCase().includes(q) ||
+        t.notes.toLowerCase().includes(q) ||
+        t.amount.toString().includes(q) ||
+        (med && (med.name.includes(q) || med.group.includes(q)))
+      );
+    });
+  }, [transactions, query, paymentMediumMap]);
 
   const columns: ColumnDef<Transaction>[] = useMemo(() => [
     {
@@ -193,10 +198,25 @@ export function TransactionsPage() {
     {
       header: "Account",
       accessorKey: "accountId",
-      className: "w-[20%] min-w-[120px]",
+      className: "w-[15%] min-w-[100px]",
       cell: (t) => {
         const a = accountMap.get(t.accountId);
         return <span className="text-[12px] text-[var(--color-muted-strong)]">{a ? displayName(a.name) : "Unknown"}</span>;
+      }
+    },
+    {
+      header: "Payment",
+      accessorKey: "paymentMediumId",
+      className: "w-[15%] min-w-[110px]",
+      cell: (t) => {
+        const m = paymentMediumMap.get(t.paymentMediumId);
+        if (!m) return <span className="text-[11px] text-[var(--color-muted)]">—</span>;
+        return (
+          <div className="flex flex-col">
+            <span className={`text-[10px] font-bold uppercase tracking-wider ${m.group === "online" ? "text-[var(--color-accent)]" : "text-[var(--color-trading-up)]"}`}>{m.group}</span>
+            <span className="text-[12px] text-[var(--color-muted-strong)]">{displayName(m.name)}</span>
+          </div>
+        );
       }
     },
     {
@@ -220,7 +240,7 @@ export function TransactionsPage() {
         </div>
       ),
     }
-  ], [accountMap, categoryMap]);
+  ], [accountMap, categoryMap, paymentMediumMap]);
 
   return (
     <div className="h-full min-h-0 flex flex-col w-full xl:max-w-[80%] max-w-[1000px] mx-auto px-6 py-6">
@@ -360,7 +380,7 @@ export function TransactionsPage() {
             </label>
           </div>
 
-          <Input label="Reason / Title" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Bought groceries" maxLength={50} />
+          <Input label="Reason / Title" value={reason} onChange={(e) => setReason(e.target.value)}               placeholder="e.g. Lunch, Transport, Utilities" maxLength={50} />
           <Textarea label="Notes (Optional)" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Additional details..." rows={3} maxLength={1000} />
 
           {formErr && <div className="text-[11px] font-semibold text-[var(--color-trading-down)]">{formErr}</div>}
