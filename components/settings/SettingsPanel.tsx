@@ -19,7 +19,7 @@ const FONT_OPTIONS = [
 ];
 
 export function SettingsPanel() {
-  const [activeTab, setActiveTab] = useState<"colors" | "typography">("colors");
+  const [activeTab, setActiveTab] = useState<"colors" | "typography" | "system">("colors");
   const [mode, setMode] = useState<ThemeMode>(() => getStoredMode());
   const [accent, setAccent] = useState<string>(() => getStoredAccent());
   const [custom, setCustom] = useState<string>(() => getStoredAccent());
@@ -85,6 +85,7 @@ export function SettingsPanel() {
       <div className="mt-6 flex gap-1 border-b border-[var(--color-hairline-on-dark)]">
         <button onClick={() => setActiveTab("colors")} className={`px-4 py-2.5 text-[13px] font-bold border-b-2 transition-colors ${activeTab === "colors" ? "border-[var(--color-primary)] text-white" : "border-transparent text-[var(--color-muted)] hover:text-white"}`}>Colors</button>
         <button onClick={() => setActiveTab("typography")} className={`px-4 py-2.5 text-[13px] font-bold border-b-2 transition-colors ${activeTab === "typography" ? "border-[var(--color-primary)] text-white" : "border-transparent text-[var(--color-muted)] hover:text-white"}`}>Typography</button>
+        <button onClick={() => setActiveTab("system")} className={`px-4 py-2.5 text-[13px] font-bold border-b-2 transition-colors ${activeTab === "system" ? "border-[var(--color-primary)] text-white" : "border-transparent text-[var(--color-muted)] hover:text-white"}`}>System</button>
       </div>
 
       <div className="mt-4 rounded-[12px] bg-[var(--color-surface-card-dark)] border border-[var(--color-hairline-on-dark)] overflow-hidden">
@@ -192,6 +193,27 @@ export function SettingsPanel() {
                 </div>
               </div>
               <p className="text-[11px] text-[var(--color-muted)] mt-2">Use the slider to scale the overall UI size up or down.</p>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "system" && (
+          <div className="p-5 space-y-5">
+            <div>
+              <div className="text-[11px] font-bold tracking-wide text-[var(--color-trading-down)] uppercase flex items-center gap-1.5">Danger Zone</div>
+              <div className="mt-4">
+                <Button variant="tradingDown" size="sm" onClick={() => {
+                  if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                      for(let registration of registrations) {
+                        registration.unregister();
+                      }
+                      alert("Offline service unregistered successfully. Reload the page for changes to take effect.");
+                    });
+                  }
+                }}>Unregister Offline Service (PWA)</Button>
+                <p className="text-[11px] text-[var(--color-muted)] mt-2">Removes the offline capabilities from this device. Use this if you are experiencing caching issues or no longer want the app installed on your device.</p>
+              </div>
             </div>
           </div>
         )}
