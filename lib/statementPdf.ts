@@ -101,6 +101,16 @@ export function buildStatementPDF(
 
   const tableW = (cols: Col[]) => cols.reduce((s, c) => s + c.w, 0);
 
+  const availableW = doc.page.width - 2 * M;
+  const scaleCols = (cols: Col[]) => {
+    const total = cols.reduce((s, c) => s + c.w, 0);
+    const scale = availableW / total;
+    return cols.map(c => ({ ...c, w: c.w * scale }));
+  };
+
+  const txnCols = scaleCols(TXN_COLS);
+  const accCols = scaleCols(ACC_COLS);
+
   const drawWatermark = () => {
     const { width, height } = doc.page;
     doc.save();
@@ -214,23 +224,23 @@ export function buildStatementPDF(
     doc.text("No accounts found.", M, Y(), { lineBreak: false });
     setY(Y() + 12);
   } else {
-    drawHeaderRow(ACC_COLS);
+    drawHeaderRow(accCols);
     for (const a of data.accounts) {
       ensureSpace(16);
       const ry = Y();
       doc.font(face).fontSize(8).fillColor(C.gray800);
-      doc.text(fit(doc, a.name, ACC_COLS[0].w - 8), M, ry + 3, { width: ACC_COLS[0].w, lineBreak: false });
-      doc.text(a.accountNumber ? a.accountNumber.slice(-6) : "\u2014", M + ACC_COLS[0].w, ry + 3, {
-        width: ACC_COLS[1].w, lineBreak: false,
+      doc.text(fit(doc, a.name, accCols[0].w - 8), M, ry + 3, { width: accCols[0].w, lineBreak: false });
+      doc.text(a.accountNumber ? a.accountNumber.slice(-6) : "\u2014", M + accCols[0].w, ry + 3, {
+        width: accCols[1].w, lineBreak: false,
       });
-      doc.text(fmt(rupee, a.openingBalance), M + ACC_COLS[0].w + ACC_COLS[1].w, ry + 3, {
-        width: ACC_COLS[2].w, align: "right", lineBreak: false,
+      doc.text(fmt(rupee, a.openingBalance), M + accCols[0].w + accCols[1].w, ry + 3, {
+        width: accCols[2].w, align: "right", lineBreak: false,
       });
       doc.text(
         fmt(rupee, a.currentBalance),
-        M + ACC_COLS[0].w + ACC_COLS[1].w + ACC_COLS[2].w,
+        M + accCols[0].w + accCols[1].w + accCols[2].w,
         ry + 3,
-        { width: ACC_COLS[3].w, align: "right", lineBreak: false },
+        { width: accCols[3].w, align: "right", lineBreak: false },
       );
       setY(ry + 14);
       doc.moveTo(M, Y()).lineTo(doc.page.width - M, Y())
@@ -240,17 +250,17 @@ export function buildStatementPDF(
     const totalOpen = data.accounts.reduce((s, a) => s + a.openingBalance, 0);
     const totalCurr = data.accounts.reduce((s, a) => s + a.currentBalance, 0);
     const ty = Y() + 1;
-    doc.rect(M, ty, tableW(ACC_COLS), 16).fill(C.gray100);
+    doc.rect(M, ty, tableW(accCols), 16).fill(C.gray100);
     doc.font(face).fontSize(8).fillColor(C.black);
-    doc.text("Total", M, ty + 5, { width: ACC_COLS[0].w, lineBreak: false });
-    doc.text(fmt(rupee, totalOpen), M + ACC_COLS[0].w + ACC_COLS[1].w, ty + 5, {
-      width: ACC_COLS[2].w, align: "right", lineBreak: false,
+    doc.text("Total", M, ty + 5, { width: accCols[0].w, lineBreak: false });
+    doc.text(fmt(rupee, totalOpen), M + accCols[0].w + accCols[1].w, ty + 5, {
+      width: accCols[2].w, align: "right", lineBreak: false,
     });
     doc.text(
       fmt(rupee, totalCurr),
-      M + ACC_COLS[0].w + ACC_COLS[1].w + ACC_COLS[2].w,
+      M + accCols[0].w + accCols[1].w + accCols[2].w,
       ty + 5,
-      { width: ACC_COLS[3].w, align: "right", lineBreak: false },
+      { width: accCols[3].w, align: "right", lineBreak: false },
     );
     setY(ty + 20);
   }
@@ -269,14 +279,14 @@ export function buildStatementPDF(
   );
   setY(Y() + 14);
 
-  drawHeaderRow(TXN_COLS);
+  drawHeaderRow(txnCols);
 
   data.rows.forEach((r, i) => {
-    if (ensureSpace(16)) drawHeaderRow(TXN_COLS);
+    if (ensureSpace(16)) drawHeaderRow(txnCols);
 
     const cell = (idx: number, text: string, color: string) => {
-      const c = TXN_COLS[idx];
-      const cx = M + TXN_COLS.slice(0, idx).reduce((s, cc) => s + cc.w, 0);
+      const c = txnCols[idx];
+      const cx = M + txnCols.slice(0, idx).reduce((s, cc) => s + cc.w, 0);
       doc.font(face).fontSize(8).fillColor(color);
       doc.text(fit(doc, text, c.w - 6), cx, Y() + 3, {
         width: c.w, align: c.align, lineBreak: false,
@@ -294,16 +304,16 @@ export function buildStatementPDF(
     cell(8, fmt(rupee, r.remaining), C.gray800);
 
     setY(Y() + 14);
-    doc.moveTo(M, Y()).lineTo(M + tableW(TXN_COLS), Y())
+    doc.moveTo(M, Y()).lineTo(M + tableW(txnCols), Y())
       .lineWidth(0.5).strokeColor(C.gray300).stroke();
   });
 
   ensureSpace(20);
   const tfY = Y() + 1;
-  doc.rect(M, tfY, tableW(TXN_COLS), 16).fill(C.gray100);
+  doc.rect(M, tfY, tableW(txnCols), 16).fill(C.gray100);
   const tf = (idx: number, text: string, color: string) => {
-    const c = TXN_COLS[idx];
-    const cx = M + TXN_COLS.slice(0, idx).reduce((s, cc) => s + cc.w, 0);
+    const c = txnCols[idx];
+    const cx = M + txnCols.slice(0, idx).reduce((s, cc) => s + cc.w, 0);
     doc.font(face).fontSize(8).fillColor(color);
     doc.text(text, cx, tfY + 5, { width: c.w, align: c.align, lineBreak: false });
   };

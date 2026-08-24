@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { Wallet, TrendingUp, TrendingDown, LayoutList, PiggyBank, Activity, PieChart as PieIcon, LineChart as LineIcon, CalendarRange } from "lucide-react";
-import { dbGetTransactions, dbGetAccounts, dbGetCategories, Transaction, ComputedAccount, Category } from "@/lib/db";
+import { Wallet, TrendingUp, TrendingDown, LayoutList, PiggyBank, Activity, PieChart as PieIcon, LineChart as LineIcon, CalendarRange, CreditCard } from "lucide-react";
+import { dbGetTransactions, dbGetAccounts, dbGetCategories, dbGetPaymentMediums, Transaction, ComputedAccount, Category, PaymentMedium } from "@/lib/db";
 import { displayName } from "@/lib/stringUtils";
 import { Select } from "@/components/ui/Select";
 import { DatePicker } from "@/components/ui/DatePicker";
@@ -23,6 +23,7 @@ export function DashboardPage() {
   const [recentIncome, setRecentIncome] = useState<Transaction[]>([]);
   const [accounts, setAccounts] = useState<ComputedAccount[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [paymentMediums, setPaymentMediums] = useState<PaymentMedium[]>([]);
   const [txns, setTxns] = useState<Transaction[]>([]);
   const [selectedAccount, setSelectedAccount] = useState("all");
 
@@ -47,10 +48,11 @@ export function DashboardPage() {
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const [txnsData, accsData, catsData] = await Promise.all([
+      const [txnsData, accsData, catsData, pmsData] = await Promise.all([
         dbGetTransactions(),
         dbGetAccounts(),
-        dbGetCategories()
+        dbGetCategories(),
+        dbGetPaymentMediums()
       ]);
 
       let income = 0;
@@ -75,6 +77,7 @@ export function DashboardPage() {
       });
       setAccounts(accsData);
       setCategories(catsData);
+      setPaymentMediums(pmsData);
       setTxns(txnsData);
 
       // Filter recent transactions (last 15 days, max 10)
@@ -92,6 +95,7 @@ export function DashboardPage() {
   }, []);
 
   const categoryMap = useMemo(() => new Map(categories.map(c => [c.id, c])), [categories]);
+  const pmMap = useMemo(() => new Map(paymentMediums.map(p => [p.id, p])), [paymentMediums]);
 
   // Earliest transaction date for min-date constraint
   const minDate = useMemo(() => {
@@ -149,6 +153,37 @@ export function DashboardPage() {
     const restValue = sorted.slice(TOP).reduce((s, d) => s + d.value, 0);
     return [...top, { label: "Others", value: restValue, color: "#707a8a" }];
   }, [expensesInRange, categoryMap]);
+
+  const pmPieData: DonutDatum[] = useMemo(() => {
+    const sums = new Map<string, number>();
+    expensesInRange.forEach(t => {
+      const id = t.paymentMediumId || "none";
+      sums.set(id, (sums.get(id) ?? 0) + t.amount);
+    });
+    const sorted = [...sums.entries()]
+      .map(([id, value]) => {
+        const pm = id === "none" ? undefined : pmMap.get(id);
+        return {
+          label: displayName(pm?.name ?? "Not Specified"),
+          value,
+          pmId: id,
+        };
+      })
+      .sort((a, b) => b.value - a.value);
+
+    const CHART_PALETTE = ["#0ea5e9", "#f43f5e", "#10b981", "#8b5cf6", "#f59e0b", "#14b8a6", "#6366f1"];
+
+    const TOP = 6;
+    const topItems = sorted.slice(0, TOP);
+    const top = topItems.map((d, i) => ({
+      label: d.label,
+      value: d.value,
+      color: CHART_PALETTE[i % CHART_PALETTE.length],
+    }));
+    if (sorted.length <= TOP) return top;
+    const restValue = sorted.slice(TOP).reduce((s, d) => s + d.value, 0);
+    return [...top, { label: "Others", value: restValue, color: "#707a8a" }];
+  }, [expensesInRange, pmMap]);
 
   const linePoints: LinePoint[] = useMemo(() => {
     const daySums = new Map<string, number>();
@@ -305,8 +340,25 @@ export function DashboardPage() {
             )}
           </div>
 
+          {/* Pie — spend by payment medium */}
+          <div className="p-4 flex flex-col min-w-0 border-t lg:border-t-0 border-[var(--color-hairline-on-dark)]">
+            <h4 className="text-[12px] font-bold tracking-wide text-[var(--color-muted-strong)] uppercase flex items-center gap-2 mb-4">
+              <CreditCard size={14} className="text-[var(--color-muted)]" /> Spent using what · by medium
+            </h4>
+            {loading ? (
+              <div className="h-[190px] flex items-center justify-center text-[11px] text-[var(--color-muted)]">Loading SQLite…</div>
+            ) : (
+              <div className="flex flex-wrap sm:flex-nowrap items-center gap-5">
+                <DonutChart data={pmPieData} size={180} thickness={26} centerLabel="Spent" />
+                <div className="max-h-[190px] overflow-auto no-scrollbar pr-1" style={{ minWidth: 200 }}>
+                  <DonutLegend data={pmPieData} total={totalSpent} />
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Line — daily spend */}
-          <div className="p-4 flex flex-col min-w-0">
+          <div className="p-4 flex flex-col min-w-0 lg:col-span-2 border-t border-[var(--color-hairline-on-dark)]">
             <h4 className="text-[12px] font-bold tracking-wide text-[var(--color-muted-strong)] uppercase flex items-center gap-2 mb-4">
               <LineIcon size={14} className="text-[var(--color-muted)]" /> Spent when · by day
             </h4>
