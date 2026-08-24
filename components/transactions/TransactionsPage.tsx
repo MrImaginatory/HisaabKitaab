@@ -322,7 +322,73 @@ export function TransactionsPage() {
           ) : filteredTxns.length === 0 ? (
             <div className="p-8 text-center text-[11px] text-[var(--color-muted)]">No transactions match your search.</div>
           ) : (
-            <DataTable columns={columns} data={filteredTxns} keyExtractor={(t) => t.id} />
+            <div className="h-full">
+              {/* Desktop Table */}
+              <div className="hidden md:block h-full">
+                <DataTable columns={columns} data={filteredTxns} keyExtractor={(t) => t.id} />
+              </div>
+
+              {/* Mobile Cards */}
+              <div className="md:hidden flex flex-col gap-3 p-4">
+                {filteredTxns.map((t) => {
+                  const isNegative = t.type === 'expense';
+                  const c = categoryMap.get(t.categoryId);
+                  const m = paymentMediumMap.get(t.paymentMediumId);
+                  const a = accountMap.get(t.accountId);
+                  const avatarText = c ? c.name.slice(0, 2).toUpperCase() : "?";
+
+                  return (
+                    <div key={t.id} className="bg-[var(--color-surface-card-dark)] p-4 rounded-lg shadow-md w-full font-sans border border-[var(--color-hairline-on-dark)]">
+                      {/* Top Row: Avatar, Title/Type, Amount */}
+                      <div className="flex justify-between items-start mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full flex items-center justify-center text-[var(--color-canvas-dark)] font-bold text-sm shrink-0" style={{ background: c ? c.color : "var(--color-surface-elevated-dark)" }}>
+                            {avatarText}
+                          </div>
+                          <div className="flex flex-col">
+                            <h3 className="text-white font-semibold text-[14px] leading-tight max-w-[160px] truncate">
+                              {t.reason}
+                            </h3>
+                            <span className="text-[var(--color-muted)] text-[11px] mt-0.5 uppercase tracking-wide">
+                              {t.type}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <div className="text-right shrink-0 ml-2">
+                          <span className={`font-num font-bold text-[14px] ${isNegative ? 'text-[var(--color-trading-down)]' : 'text-[var(--color-trading-up)]'}`}>
+                            {isNegative ? '-' : '+'}₹{Math.abs(t.amount).toLocaleString('en-IN')}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Middle Row: Bank and Date */}
+                      <div className="flex justify-between items-center text-[11px] text-[var(--color-muted-strong)] mb-4 bg-[var(--color-surface-elevated-dark)] px-3 py-2 rounded-[6px]">
+                         <span className="truncate max-w-[150px]">{a ? displayName(a.name) : "Unknown Account"}</span>
+                         <span className="font-num shrink-0">{t.date}</span>
+                      </div>
+
+                      {/* Bottom Row: Method/Category and Actions */}
+                      <div className="flex justify-between items-center mt-2 border-t border-[var(--color-hairline-on-dark)] pt-3">
+                        <div className="flex flex-col min-w-0 mr-4">
+                          <span className="text-white font-medium text-[12px] uppercase tracking-wide">{m ? m.group : "—"}</span>
+                          <span className="text-[var(--color-muted)] text-[11px] truncate">{m ? displayName(m.name) : "—"} • {c ? displayName(c.name) : "—"}</span>
+                        </div>
+                        
+                        <div className="flex gap-1 text-[var(--color-muted)] shrink-0">
+                          <button onClick={() => openEdit(t)} className="w-8 h-8 rounded-[6px] hover:text-[#fcd535] hover:bg-[#fcd535]/10 flex items-center justify-center transition-colors" aria-label="Edit">
+                            <Pencil size={14} />
+                          </button>
+                          <button onClick={() => handleDelete(t.id)} className="w-8 h-8 rounded-[6px] hover:text-[var(--color-trading-down)] hover:bg-[var(--color-trading-down)]/10 flex items-center justify-center transition-colors" aria-label="Delete">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           )}
         </div>
       </div>

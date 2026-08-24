@@ -226,7 +226,52 @@ export function AccountsPage() {
               <div className="text-[11px] text-[var(--color-muted)] mt-1">Add your first main account above — e.g. bank, cash, UPI.</div>
             </div>
           ) : viewMode === "list" ? (
-            <DataTable columns={columns} data={filtered} keyExtractor={(a) => a.id} />
+            <div className="h-full">
+              <div className="hidden md:block h-full">
+                <DataTable columns={columns} data={filtered} keyExtractor={(a) => a.id} />
+              </div>
+              <div className="md:hidden flex flex-col gap-3 p-4">
+                {filtered.map((a) => (
+                  <div key={a.id} className="bg-[var(--color-surface-card-dark)] p-4 rounded-lg shadow-md w-full font-sans border border-[var(--color-hairline-on-dark)]">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] text-white shrink-0">
+                          <Wallet size={16} />
+                        </div>
+                        <div className="flex flex-col">
+                          <h3 className="text-white font-semibold text-[14px] leading-tight max-w-[160px] truncate">
+                            {displayName(a.name)}
+                          </h3>
+                          <span className="text-[var(--color-muted)] text-[11px] mt-0.5 tracking-wide truncate max-w-[160px]">
+                            {a.description ? displayName(a.description) : "No description"}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0 ml-2">
+                        <span className="font-num font-bold text-[14px] text-white">
+                          ₹{Number(a.currentBalance).toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-between items-center text-[11px] text-[var(--color-muted-strong)] mt-2 bg-[var(--color-surface-elevated-dark)] px-3 py-2 rounded-[6px]">
+                      <span className="font-num shrink-0">{a.date}</span>
+                    </div>
+
+                    <div className="flex justify-end items-center mt-2 border-t border-[var(--color-hairline-on-dark)] pt-3">
+                      <div className="flex gap-1 text-[var(--color-muted)] shrink-0">
+                        <button onClick={() => openEdit(a)} className="w-8 h-8 rounded-[6px] hover:text-[#fcd535] hover:bg-[#fcd535]/10 flex items-center justify-center transition-colors" aria-label="Edit">
+                          <Pencil size={14} />
+                        </button>
+                        <button onClick={() => handleDelete(a.id, a.name)} className="w-8 h-8 rounded-[6px] hover:text-[var(--color-trading-down)] hover:bg-[var(--color-trading-down)]/10 flex items-center justify-center transition-colors" aria-label="Delete">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           ) : (
             <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {filtered.map((a) => (

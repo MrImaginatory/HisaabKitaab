@@ -331,7 +331,7 @@ export function DashboardPage() {
             {loading ? (
               <div className="h-[190px] flex items-center justify-center text-[11px] text-[var(--color-muted)]">Loading SQLite…</div>
             ) : (
-              <div className="flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-5">
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-5">
                 <div className="flex justify-center shrink-0">
                   <DonutChart data={pieData} size={180} thickness={26} centerLabel="Spent" />
                 </div>
@@ -350,7 +350,7 @@ export function DashboardPage() {
             {loading ? (
               <div className="h-[190px] flex items-center justify-center text-[11px] text-[var(--color-muted)]">Loading SQLite…</div>
             ) : (
-              <div className="flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-5">
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-5">
                 <div className="flex justify-center shrink-0">
                   <DonutChart data={pmPieData} size={180} thickness={26} centerLabel="Spent" />
                 </div>

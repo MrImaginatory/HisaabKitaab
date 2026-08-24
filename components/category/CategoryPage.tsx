@@ -272,7 +272,48 @@ export function CategoryPage() {
               <div className="text-[11px] text-[var(--color-muted)] mt-1">Add one above or import a CSV. Duplicates are auto-skipped.</div>
             </div>
           ) : viewMode === "list" ? (
-            <DataTable columns={columns} data={filteredCats} keyExtractor={(c) => c.id} />
+            <div className="h-full">
+              <div className="hidden md:block h-full">
+                <DataTable columns={columns} data={filteredCats} keyExtractor={(c) => c.id} />
+              </div>
+              <div className="md:hidden flex flex-col gap-3 p-4">
+                {filteredCats.map((c) => (
+                  <div key={c.id} className="bg-[var(--color-surface-card-dark)] p-4 rounded-lg shadow-md w-full font-sans border border-[var(--color-hairline-on-dark)]">
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center text-[var(--color-canvas-dark)] font-bold text-sm shrink-0 border border-white/15" style={{ background: c.color }}>
+                          {c.name.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="flex flex-col">
+                          <h3 className="text-white font-semibold text-[14px] leading-tight max-w-[160px] truncate">
+                            {displayName(c.name)}
+                          </h3>
+                          <span className="text-[var(--color-muted)] font-num text-[11px] mt-0.5 tracking-wide truncate">
+                            {c.color}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0 ml-2">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${c.type === "income" ? "bg-[var(--color-trading-up)]/12 text-[var(--color-trading-up)] border-[var(--color-trading-up)]/20" : "bg-[var(--color-trading-down)]/12 text-[var(--color-trading-down)] border-[var(--color-trading-down)]/20"}`}>
+                          {displayName(c.type)}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-end items-center mt-2 border-t border-[var(--color-hairline-on-dark)] pt-3">
+                      <div className="flex gap-1 text-[var(--color-muted)] shrink-0">
+                        <button onClick={() => openEdit(c)} className="w-8 h-8 rounded-[6px] hover:text-[#fcd535] hover:bg-[#fcd535]/10 flex items-center justify-center transition-colors" aria-label="Edit">
+                          <Pencil size={14} />
+                        </button>
+                        <button onClick={() => handleDelete(c.id, c.name)} className="w-8 h-8 rounded-[6px] hover:text-[var(--color-trading-down)] hover:bg-[var(--color-trading-down)]/10 flex items-center justify-center transition-colors" aria-label="Delete">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           ) : (
             <div className="p-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
               {filteredCats.map((c) => (

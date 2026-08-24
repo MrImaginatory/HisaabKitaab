@@ -128,13 +128,13 @@ export function PaymentMediumPage() {
   }
 
   return (
-    <div className="h-full min-h-0 flex flex-col xl:max-w-[80%] max-w-[1000px] mx-auto px-6 py-6">
+    <div className="h-full min-h-0 flex flex-col xl:max-w-[80%] max-w-[1000px] mx-auto px-6 py-6 overflow-y-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
         <div>
           <h1 className="text-[20px] font-extrabold tracking-tight">Payment Mediums</h1>
           <p className="text-[12px] text-[var(--color-muted)] mt-0.5">Manage how you pay — online and offline mediums</p>
         </div>
-        <Button onClick={openAdd} size="sm" className="self-start"><Plus className="w-3.5 h-3.5 mr-1.5" />Add Medium</Button>
+        <Button onClick={openAdd} size="sm" className="w-full sm:w-auto"><Plus className="w-3.5 h-3.5 mr-1.5" />Add Medium</Button>
       </div>
 
       {/* Online Section */}
@@ -144,11 +144,47 @@ export function PaymentMediumPage() {
           <h2 className="text-[13px] font-bold uppercase tracking-wider text-[var(--color-accent)]">Online</h2>
           <span className="text-[11px] text-[var(--color-muted)]">({onlineMediums.length})</span>
         </div>
-        <div className="rounded-[12px] bg-[var(--color-surface-card-dark)] border border-[var(--color-hairline-on-dark)] overflow-hidden">
+        <div className="md:rounded-[12px] md:bg-[var(--color-surface-card-dark)] md:border md:border-[var(--color-hairline-on-dark)] overflow-hidden">
           {onlineMediums.length === 0 ? (
             <p className="text-[12px] text-[var(--color-muted)] p-4 italic">No online payment mediums</p>
           ) : (
-            <DataTable columns={columns} data={onlineMediums} keyExtractor={(m) => m.id} />
+            <div className="h-full">
+              <div className="hidden md:block h-full">
+                <DataTable columns={columns} data={onlineMediums} keyExtractor={(m) => m.id} />
+              </div>
+              <div className="md:hidden flex flex-col gap-3">
+                {onlineMediums.map((m) => (
+                  <div key={m.id} className="bg-[var(--color-surface-card-dark)] p-4 rounded-lg shadow-md w-full font-sans border border-[var(--color-hairline-on-dark)]">
+                    <div className="flex justify-between items-center mb-2">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] shrink-0">
+                          <Wifi size={16} className="text-[var(--color-accent)]" />
+                        </div>
+                        <h3 className="text-white font-semibold text-[14px] leading-tight max-w-[160px] truncate">
+                          {displayName(m.name)}
+                        </h3>
+                      </div>
+                      <div className="text-right shrink-0 ml-2">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--color-accent)]/15 text-[var(--color-accent)] uppercase tracking-wider">
+                          {m.group}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-end items-center mt-2 border-t border-[var(--color-hairline-on-dark)] pt-3">
+                      <div className="flex gap-1 text-[var(--color-muted)] shrink-0">
+                        <button onClick={() => openEdit(m)} className="w-8 h-8 rounded-[6px] hover:text-[#fcd535] hover:bg-[#fcd535]/10 flex items-center justify-center transition-colors" aria-label="Edit">
+                          <Pencil size={14} />
+                        </button>
+                        <button onClick={() => handleDelete(m)} className="w-8 h-8 rounded-[6px] hover:text-[var(--color-trading-down)] hover:bg-[var(--color-trading-down)]/10 flex items-center justify-center transition-colors" aria-label="Delete">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       </div>
@@ -160,11 +196,47 @@ export function PaymentMediumPage() {
           <h2 className="text-[13px] font-bold uppercase tracking-wider text-[var(--color-trading-up)]">Offline</h2>
           <span className="text-[11px] text-[var(--color-muted)]">({offlineMediums.length})</span>
         </div>
-        <div className="rounded-[12px] bg-[var(--color-surface-card-dark)] border border-[var(--color-hairline-on-dark)] overflow-hidden">
+        <div className="md:rounded-[12px] md:bg-[var(--color-surface-card-dark)] md:border md:border-[var(--color-hairline-on-dark)] overflow-hidden">
           {offlineMediums.length === 0 ? (
             <p className="text-[12px] text-[var(--color-muted)] p-4 italic">No offline payment mediums</p>
           ) : (
-            <DataTable columns={columns} data={offlineMediums} keyExtractor={(m) => m.id} />
+            <div className="h-full">
+              <div className="hidden md:block h-full">
+                <DataTable columns={columns} data={offlineMediums} keyExtractor={(m) => m.id} />
+              </div>
+              <div className="md:hidden flex flex-col gap-3">
+                {offlineMediums.map((m) => (
+                  <div key={m.id} className="bg-[var(--color-surface-card-dark)] p-4 rounded-lg shadow-md w-full font-sans border border-[var(--color-hairline-on-dark)]">
+                    <div className="flex justify-between items-center mb-2">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] shrink-0">
+                          <Banknote size={16} className="text-[var(--color-trading-up)]" />
+                        </div>
+                        <h3 className="text-white font-semibold text-[14px] leading-tight max-w-[160px] truncate">
+                          {displayName(m.name)}
+                        </h3>
+                      </div>
+                      <div className="text-right shrink-0 ml-2">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--color-trading-up)]/15 text-[var(--color-trading-up)] uppercase tracking-wider">
+                          {m.group}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-end items-center mt-2 border-t border-[var(--color-hairline-on-dark)] pt-3">
+                      <div className="flex gap-1 text-[var(--color-muted)] shrink-0">
+                        <button onClick={() => openEdit(m)} className="w-8 h-8 rounded-[6px] hover:text-[#fcd535] hover:bg-[#fcd535]/10 flex items-center justify-center transition-colors" aria-label="Edit">
+                          <Pencil size={14} />
+                        </button>
+                        <button onClick={() => handleDelete(m)} className="w-8 h-8 rounded-[6px] hover:text-[var(--color-trading-down)] hover:bg-[var(--color-trading-down)]/10 flex items-center justify-center transition-colors" aria-label="Delete">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       </div>

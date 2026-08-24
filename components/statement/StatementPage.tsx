@@ -240,57 +240,109 @@ export function StatementPage() {
         ) : (
           <>
             <div className="flex-1 min-h-0 overflow-auto">
-              <table className="w-full text-left border-collapse min-w-[700px]">
-                <thead className="sticky top-0 bg-[var(--color-surface-elevated-dark)] border-b border-[var(--color-hairline-on-dark)] text-[11px] font-bold tracking-wide text-[var(--color-muted)] uppercase z-10">
-                  <tr>
-                    <th className="px-4 py-3 w-[40px]">#</th>
-                    <th className="px-4 py-3 w-[100px]">Date</th>
-                    <th className="px-4 py-3">Category</th>
-                    <th className="px-4 py-3">Notes</th>
-                    <th className="px-4 py-3">Payment</th>
-                    <th className="px-4 py-3">Account</th>
-                    <th className="px-4 py-3 text-right">Credit</th>
-                    <th className="px-4 py-3 text-right">Debit</th>
-                    <th className="px-4 py-3 text-right">Remaining</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--color-hairline-on-dark)]">
-                  {pageRows.map((r, i) => {
-                    const idx = page * PAGE_SIZE + i;
-                    return (
-                      <tr key={idx} className="transition hover:bg-[var(--color-surface-elevated-dark)]/30">
-                        <td className="px-4 py-3 text-[11px] text-[var(--color-muted)] font-num">{idx + 1}</td>
-                        <td className="px-4 py-3 text-[12px] font-num text-white">{r.date}</td>
-                        <td className="px-4 py-3 text-[12px] text-[var(--color-muted-strong)]">{r.category}</td>
-                        <td className="px-4 py-3 text-[12px] text-[var(--color-muted-strong)] truncate max-w-[200px]" title={r.notes}>{r.notes}</td>
-                        <td className="px-4 py-3 text-[11px] text-[var(--color-muted-strong)]">{r.paymentMode || "—"}</td>
-                        <td className="px-4 py-3 text-[12px] text-[var(--color-muted-strong)]">{r.account}</td>
-                        <td className="px-4 py-3 text-[12px] font-num text-right font-semibold text-[var(--color-trading-up)]">
-                          {r.credit > 0 ? `${symbol}${r.credit.toLocaleString("en-IN")}` : "—"}
-                        </td>
-                        <td className="px-4 py-3 text-[12px] font-num text-right font-semibold text-[var(--color-trading-down)]">
-                          {r.debit > 0 ? `${symbol}${r.debit.toLocaleString("en-IN")}` : "—"}
-                        </td>
-                        <td className="px-4 py-3 text-[12px] font-num text-right font-bold text-white">
-                          {symbol}{r.remaining.toLocaleString("en-IN")}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot className="bg-[var(--color-surface-elevated-dark)] border-t border-[var(--color-hairline-on-dark)]">
-                  <tr>
-                    <td colSpan={6} className="px-4 py-3 text-[11px] font-bold text-[var(--color-muted)] uppercase">Total</td>
-                    <td className="px-4 py-3 text-[12px] font-num text-right font-bold text-[var(--color-trading-up)]">
-                      {symbol}{totalCredit.toLocaleString("en-IN")}
-                    </td>
-                    <td className="px-4 py-3 text-[12px] font-num text-right font-bold text-[var(--color-trading-down)]">
-                      {symbol}{totalDebit.toLocaleString("en-IN")}
-                    </td>
-                    <td className="px-4 py-3" />
-                  </tr>
-                </tfoot>
-              </table>
+              <div className="hidden md:block">
+                <table className="w-full text-left border-collapse min-w-[700px]">
+                  <thead className="sticky top-0 bg-[var(--color-surface-elevated-dark)] border-b border-[var(--color-hairline-on-dark)] text-[11px] font-bold tracking-wide text-[var(--color-muted)] uppercase z-10">
+                    <tr>
+                      <th className="px-4 py-3 w-[40px]">#</th>
+                      <th className="px-4 py-3 w-[100px]">Date</th>
+                      <th className="px-4 py-3">Category</th>
+                      <th className="px-4 py-3">Notes</th>
+                      <th className="px-4 py-3">Payment</th>
+                      <th className="px-4 py-3">Account</th>
+                      <th className="px-4 py-3 text-right">Credit</th>
+                      <th className="px-4 py-3 text-right">Debit</th>
+                      <th className="px-4 py-3 text-right">Remaining</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--color-hairline-on-dark)]">
+                    {pageRows.map((r, i) => {
+                      const idx = page * PAGE_SIZE + i;
+                      return (
+                        <tr key={idx} className="transition hover:bg-[var(--color-surface-elevated-dark)]/30">
+                          <td className="px-4 py-3 text-[11px] text-[var(--color-muted)] font-num">{idx + 1}</td>
+                          <td className="px-4 py-3 text-[12px] font-num text-white">{r.date}</td>
+                          <td className="px-4 py-3 text-[12px] text-[var(--color-muted-strong)]">{r.category}</td>
+                          <td className="px-4 py-3 text-[12px] text-[var(--color-muted-strong)] truncate max-w-[200px]" title={r.notes}>{r.notes}</td>
+                          <td className="px-4 py-3 text-[11px] text-[var(--color-muted-strong)]">{r.paymentMode || "—"}</td>
+                          <td className="px-4 py-3 text-[12px] text-[var(--color-muted-strong)]">{r.account}</td>
+                          <td className="px-4 py-3 text-[12px] font-num text-right font-semibold text-[var(--color-trading-up)]">
+                            {r.credit > 0 ? `${symbol}${r.credit.toLocaleString("en-IN")}` : "—"}
+                          </td>
+                          <td className="px-4 py-3 text-[12px] font-num text-right font-semibold text-[var(--color-trading-down)]">
+                            {r.debit > 0 ? `${symbol}${r.debit.toLocaleString("en-IN")}` : "—"}
+                          </td>
+                          <td className="px-4 py-3 text-[12px] font-num text-right font-bold text-white">
+                            {symbol}{r.remaining.toLocaleString("en-IN")}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot className="bg-[var(--color-surface-elevated-dark)] border-t border-[var(--color-hairline-on-dark)]">
+                    <tr>
+                      <td colSpan={6} className="px-4 py-3 text-[11px] font-bold text-[var(--color-muted)] uppercase">Total</td>
+                      <td className="px-4 py-3 text-[12px] font-num text-right font-bold text-[var(--color-trading-up)]">
+                        {symbol}{totalCredit.toLocaleString("en-IN")}
+                      </td>
+                      <td className="px-4 py-3 text-[12px] font-num text-right font-bold text-[var(--color-trading-down)]">
+                        {symbol}{totalDebit.toLocaleString("en-IN")}
+                      </td>
+                      <td className="px-4 py-3" />
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+              <div className="md:hidden flex flex-col gap-3 p-4 bg-[var(--color-canvas-dark)]">
+                {pageRows.map((r, i) => {
+                  const idx = page * PAGE_SIZE + i;
+                  const isNegative = r.debit > 0;
+                  const amt = isNegative ? r.debit : r.credit;
+
+                  return (
+                    <div key={idx} className="bg-[var(--color-surface-card-dark)] p-4 rounded-lg shadow-md w-full font-sans border border-[var(--color-hairline-on-dark)]">
+                      <div className="flex justify-between items-start mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full flex items-center justify-center bg-[var(--color-surface-elevated-dark)] text-white font-bold text-sm shrink-0 border border-[var(--color-hairline-on-dark)]">
+                            {r.category.slice(0, 2).toUpperCase()}
+                          </div>
+                          <div className="flex flex-col">
+                            <h3 className="text-white font-semibold text-[14px] leading-tight max-w-[140px] truncate">
+                              {r.category}
+                            </h3>
+                            <span className="text-[var(--color-muted)] text-[11px] mt-0.5 tracking-wide truncate max-w-[140px]">
+                              {r.notes || "No notes"}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <div className="text-right shrink-0 ml-2">
+                          <span className={`font-num font-bold text-[14px] ${isNegative ? 'text-[var(--color-trading-down)]' : 'text-[var(--color-trading-up)]'}`}>
+                            {isNegative ? '-' : '+'}{symbol}{Math.abs(amt).toLocaleString('en-IN')}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-between items-center text-[11px] text-[var(--color-muted-strong)] mb-4 bg-[var(--color-surface-elevated-dark)] px-3 py-2 rounded-[6px]">
+                         <span className="truncate max-w-[140px]">{r.account}</span>
+                         <span className="font-num shrink-0">{r.date}</span>
+                      </div>
+
+                      <div className="flex justify-between items-center mt-2 border-t border-[var(--color-hairline-on-dark)] pt-3">
+                        <div className="flex flex-col min-w-0 mr-4">
+                          <span className="text-[var(--color-muted)] text-[11px] truncate uppercase">Payment</span>
+                          <span className="text-white font-medium text-[12px] truncate">{r.paymentMode || "—"}</span>
+                        </div>
+                        
+                        <div className="flex flex-col items-end shrink-0">
+                          <span className="text-[var(--color-muted)] text-[11px] truncate uppercase">Remaining</span>
+                          <span className="text-white font-medium font-num text-[12px] truncate">{symbol}{r.remaining.toLocaleString('en-IN')}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Pagination */}
