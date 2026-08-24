@@ -1,15 +1,25 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { FileDown, ChevronLeft, ChevronRight, FileSpreadsheet, FileText, CalendarRange } from "lucide-react";
+import { ChevronLeft, ChevronRight, CalendarRange } from "lucide-react";
 import { dbGetTransactions, dbGetAccounts, dbGetCategories, dbGetPaymentMediums, Transaction, ComputedAccount, Category, PaymentMedium } from "@/lib/db";
 import { displayName } from "@/lib/stringUtils";
 import { Select } from "@/components/ui/Select";
 import { DatePicker } from "@/components/ui/DatePicker";
-import { PeriodPreset, PERIOD_OPTIONS, getRange, eachDay } from "@/lib/periods";
-import { StatementRow, AccountSummary, CategorySpend, DailySpend, downloadPDF, downloadExcel } from "@/lib/exports";
+import { PeriodPreset, PERIOD_OPTIONS, getRange } from "@/lib/periods";
 import { getProfile } from "@/lib/profile";
 
 const PAGE_SIZE = 25;
+
+interface StatementRow {
+  date: string;
+  category: string;
+  notes: string;
+  paymentMode?: string;
+  account: string;
+  credit: number;
+  debit: number;
+  remaining: number;
+}
 
 export function StatementPage() {
   const [loading, setLoading] = useState(true);
@@ -53,9 +63,6 @@ export function StatementPage() {
       setLoading(false);
     })();
   }, []);
-
-  // Reset page when filters change
-  useEffect(() => { setPage(0); }, [period, customFrom, customTo, selectedAccount]);
 
   const categoryMap = useMemo(() => new Map(categories.map(c => [c.id, c])), [categories]);
   const accountMap = useMemo(() => new Map(accounts.map(a => [a.id, a])), [accounts]);
@@ -130,61 +137,6 @@ export function StatementPage() {
   const totalDebit = rows.reduce((s, r) => s + r.debit, 0);
   const symbol = getProfile().currencySymbol || "\u20B9";
 
-  // Accounts summary for PDF
-  const accountsSummary: AccountSummary[] = useMemo(() => {
-    if (selectedAccount === "all") {
-      return accounts.map(a => ({ name: displayName(a.name), openingBalance: a.openingBalance, currentBalance: a.currentBalance, accountNumber: a.accountNumber ?? "" }));
-    }
-    const a = accounts.find(acc => acc.id === selectedAccount);
-    return a ? [{ name: displayName(a.name), openingBalance: a.openingBalance, currentBalance: a.currentBalance, accountNumber: a.accountNumber ?? "" }] : [];
-  }, [accounts, selectedAccount]);
-
-  // Category spend for PDF donut
-  const categorySpend: CategorySpend[] = useMemo(() => {
-    const sums = new Map<string, number>();
-    const expenseRows = rows.filter(r => r.debit > 0);
-    // We need original category data — re-derive from txns
-    const filteredTxns = txns.filter(t => {
-      if (t.type !== "expense") return false;
-      if (t.date < range.start || t.date > range.end) return false;
-      if (selectedAccount !== "all" && t.accountId !== selectedAccount) return false;
-      return true;
-    });
-    filteredTxns.forEach(t => {
-      const cat = categoryMap.get(t.categoryId);
-      const label = displayName(cat?.name ?? "Unknown");
-      sums.set(label, (sums.get(label) ?? 0) + t.amount);
-    });
-    const sorted = [...sums.entries()].sort((a, b) => b[1] - a[1]);
-    const PALETTE = ["#fcd535", "#0ecb81", "#f6465d", "#3b82f6", "#8b5cf6", "#ec4899", "#f97316", "#14b8a6", "#a3e635", "#06b6d4", "#e879f9", "#facc15"];
-    return sorted.map(([label, value], i) => ({ label, value, color: PALETTE[i % PALETTE.length] }));
-  }, [txns, range, selectedAccount, categoryMap]);
-
-  // Daily spend for PDF line chart
-  const dailySpend: DailySpend[] = useMemo(() => {
-    const daySums = new Map<string, number>();
-    const filteredTxns = txns.filter(t => {
-      if (t.type !== "expense") return false;
-      if (t.date < range.start || t.date > range.end) return false;
-      if (selectedAccount !== "all" && t.accountId !== selectedAccount) return false;
-      return true;
-    });
-    filteredTxns.forEach(t => {
-      daySums.set(t.date, (daySums.get(t.date) ?? 0) + t.amount);
-    });
-    return eachDay(range.start, range.end).map(date => ({ date, value: daySums.get(date) ?? 0 }));
-  }, [txns, range, selectedAccount]);
-
-  const totalSpent = categorySpend.reduce((s, c) => s + c.value, 0);
-
-  const handlePDF = async (useWatermark: boolean) => downloadPDF({
-    rows, range, totalCredit, totalDebit,
-    accounts: accountsSummary,
-    categorySpend, dailySpend, totalSpent,
-    watermark: useWatermark ? getProfile().watermark : undefined,
-  });
-  const handleExcel = () => downloadExcel(rows, range, totalCredit, totalDebit);
-
   return (
     <div className="h-full min-h-0 flex flex-col w-full xl:max-w-[80%] max-w-[1000px] mx-auto px-6 py-6 overflow-y-auto">
       {/* Header */}
@@ -192,7 +144,7 @@ export function StatementPage() {
         <div>
           <h1 className="text-[20px] font-bold tracking-tight text-white">Statement</h1>
           <p className="text-[12px] leading-relaxed text-[var(--color-muted-strong)] mt-1 max-w-[60ch]">
-            View transactions with running balances, and export to PDF or Excel.
+            View transactions with running balances.
           </p>
         </div>
       </div>
@@ -204,7 +156,7 @@ export function StatementPage() {
           <div className="w-[170px]">
             <Select
               value={period}
-              onChange={(v) => setPeriod(v as PeriodPreset)}
+              onChange={(v) => { setPeriod(v as PeriodPreset); setPage(0); }}
               options={PERIOD_OPTIONS}
               ariaLabel="Statement period"
             />
@@ -214,7 +166,7 @@ export function StatementPage() {
           <div className="w-[180px]">
             <Select
               value={selectedAccount}
-              onChange={setSelectedAccount}
+              onChange={(v) => { setSelectedAccount(v); setPage(0); }}
               options={accountOptions}
               ariaLabel="Filter by account"
             />
@@ -224,40 +176,16 @@ export function StatementPage() {
           {period === "custom" && (
             <>
               <div className="w-[150px]">
-                <DatePicker label="" value={customFrom} onChange={setCustomFrom} placeholder="From" min={minDate} />
+                <DatePicker label="" value={customFrom} onChange={(v) => { setCustomFrom(v); setPage(0); }} placeholder="From" min={minDate} />
               </div>
               <span className="text-[11px] font-bold text-[var(--color-muted)]">→</span>
               <div className="w-[150px]">
-                <DatePicker label="" value={customTo} onChange={setCustomTo} placeholder="To" min={minDate} />
+                <DatePicker label="" value={customTo} onChange={(v) => { setCustomTo(v); setPage(0); }} placeholder="To" min={minDate} />
               </div>
             </>
           )}
 
           <span className="ml-auto" />
-
-          {/* Export buttons */}
-          <button
-            onClick={() => handlePDF(false)}
-            disabled={rows.length === 0}
-            className="h-8 px-3 rounded-[6px] bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] text-[11px] font-bold text-[var(--color-muted-strong)] hover:text-white hover:border-[var(--color-primary)]/30 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
-          >
-            <FileText size={13} /> PDF
-          </button>
-          <button
-            onClick={() => handlePDF(true)}
-            disabled={rows.length === 0 || !getProfile().watermark}
-            title={!getProfile().watermark ? "Set watermark text in Profile first" : "Download PDF with watermark"}
-            className="h-8 px-3 rounded-[6px] bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] text-[11px] font-bold text-[var(--color-muted-strong)] hover:text-white hover:border-[var(--color-primary)]/30 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
-          >
-            <FileText size={13} /> PDF + Watermark
-          </button>
-          <button
-            onClick={handleExcel}
-            disabled={rows.length === 0}
-            className="h-8 px-3 rounded-[6px] bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] text-[11px] font-bold text-[var(--color-muted-strong)] hover:text-white hover:border-[var(--color-primary)]/30 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
-          >
-            <FileSpreadsheet size={13} /> Excel
-          </button>
         </div>
 
         {/* Range + count info */}
