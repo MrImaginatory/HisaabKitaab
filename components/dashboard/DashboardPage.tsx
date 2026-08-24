@@ -269,15 +269,15 @@ export function DashboardPage() {
       {/* ===== Spend Analytics ===== */}
       <div className="mt-8 shrink-0 rounded-[12px] bg-[var(--color-surface-card-dark)] border border-[var(--color-hairline-on-dark)] overflow-hidden">
         {/* Card header + period filter */}
-        <div className="p-4 border-b border-[var(--color-hairline-on-dark)] flex flex-wrap items-center gap-3">
-          <h3 className="text-[13px] font-bold text-white flex items-center gap-2 mr-auto">
+        <div className="p-4 border-b border-[var(--color-hairline-on-dark)] flex flex-col sm:flex-row flex-wrap sm:items-center gap-3">
+          <h3 className="text-[13px] font-bold text-white flex items-center gap-2 sm:mr-auto">
             <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-primary)]" />
             Spend Analytics
           </h3>
 
           {/* Summary chips */}
           {!loading && (
-            <div className="flex items-center gap-2 mr-2">
+            <div className="flex items-center gap-2 sm:mr-2">
               <span className="h-7 px-2.5 inline-flex items-center gap-1.5 rounded-full bg-[var(--color-trading-down)]/12 border border-[var(--color-trading-down)]/20 text-[11px] font-bold text-[var(--color-trading-down)]">
                 Spent <span className="font-num">₹{Math.round(totalSpent).toLocaleString("en-IN")}</span>
               </span>
@@ -288,7 +288,7 @@ export function DashboardPage() {
           )}
 
           {/* Period preset */}
-          <div className="w-[170px]">
+          <div className="w-full sm:w-[170px]">
             <Select
               value={period}
               onChange={(v) => setPeriod(v as PeriodPreset)}
@@ -298,7 +298,7 @@ export function DashboardPage() {
           </div>
 
           {/* Account filter */}
-          <div className="w-[180px]">
+          <div className="w-full sm:w-[180px]">
             <Select
               value={selectedAccount}
               onChange={setSelectedAccount}
@@ -309,15 +309,15 @@ export function DashboardPage() {
 
           {/* Custom range pickers */}
           {period === "custom" && (
-            <>
-              <div className="w-[150px]">
+            <div className="w-full sm:w-auto flex items-center gap-2">
+              <div className="flex-1 sm:w-[150px]">
                 <DatePicker label="" value={customFrom} onChange={(v) => { setCustomFrom(v); }} placeholder="From" min={minDate} />
               </div>
               <span className="text-[11px] font-bold text-[var(--color-muted)]">→</span>
-              <div className="w-[150px]">
+              <div className="flex-1 sm:w-[150px]">
                 <DatePicker label="" value={customTo} onChange={(v) => { setCustomTo(v); }} placeholder="To" min={minDate} />
               </div>
-            </>
+            </div>
           )}
         </div>
 
@@ -331,9 +331,11 @@ export function DashboardPage() {
             {loading ? (
               <div className="h-[190px] flex items-center justify-center text-[11px] text-[var(--color-muted)]">Loading SQLite…</div>
             ) : (
-              <div className="flex flex-wrap sm:flex-nowrap items-center gap-5">
-                <DonutChart data={pieData} size={180} thickness={26} centerLabel="Spent" />
-                <div className="max-h-[190px] overflow-auto no-scrollbar pr-1" style={{ minWidth: 200 }}>
+              <div className="flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-5">
+                <div className="flex justify-center shrink-0">
+                  <DonutChart data={pieData} size={180} thickness={26} centerLabel="Spent" />
+                </div>
+                <div className="max-h-[190px] overflow-auto no-scrollbar pr-1 w-full sm:w-auto" style={{ minWidth: 200 }}>
                   <DonutLegend data={pieData} total={totalSpent} />
                 </div>
               </div>
@@ -348,9 +350,11 @@ export function DashboardPage() {
             {loading ? (
               <div className="h-[190px] flex items-center justify-center text-[11px] text-[var(--color-muted)]">Loading SQLite…</div>
             ) : (
-              <div className="flex flex-wrap sm:flex-nowrap items-center gap-5">
-                <DonutChart data={pmPieData} size={180} thickness={26} centerLabel="Spent" />
-                <div className="max-h-[190px] overflow-auto no-scrollbar pr-1" style={{ minWidth: 200 }}>
+              <div className="flex flex-col sm:flex-row items-center sm:items-start justify-center sm:justify-start gap-5">
+                <div className="flex justify-center shrink-0">
+                  <DonutChart data={pmPieData} size={180} thickness={26} centerLabel="Spent" />
+                </div>
+                <div className="max-h-[190px] overflow-auto no-scrollbar pr-1 w-full sm:w-auto" style={{ minWidth: 200 }}>
                   <DonutLegend data={pmPieData} total={totalSpent} />
                 </div>
               </div>

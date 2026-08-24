@@ -34,6 +34,10 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: process.env.NEXT_PUBLIC_APP_NAME || "Hisaab Kitaab",
   description: process.env.NEXT_PUBLIC_APP_DESCRIPTION || "Local SQLite finance manager.",
+  icons: {
+    icon: "/Logo.svg",
+    apple: "/Logo.svg",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",

@@ -15,6 +15,8 @@ import { applyTheme, getStoredAccent, getStoredMode } from "@/lib/theme";
 import { loadProfileFromDB } from "@/lib/profile";
 import { createBlankDBBytes, downloadCurrentDB, openDBFromFile, getDB, setDBFromBytes, reconnectDB } from "@/lib/db";
 
+import { SplashScreen } from "@/components/layout/SplashScreen";
+
 const LAST_DB_KEY = "hk_last_db_name";
 
 function Placeholder({ title, desc }: { title: string; desc: string }) {
@@ -33,6 +35,7 @@ function Placeholder({ title, desc }: { title: string; desc: string }) {
 }
 
 export default function Home() {
+  const [showSplash, setShowSplash] = useState(true);
   // Keep server and initial client render identical to avoid hydration mismatch.
   // Server always renders the "choose DB" state; client upgrades after mount if needed.
   const [lastDb, setLastDb] = useState<string | null>(null);
@@ -229,8 +232,10 @@ export default function Home() {
   }
 
   return (
-    <div className="h-screen max-h-[100vh] overflow-hidden bg-[var(--color-canvas-dark)] text-[var(--color-body)] flex">
-      <Sidebar 
+    <>
+      {showSplash && <SplashScreen onComplete={() => setShowSplash(false)} />}
+      <div className="h-screen max-h-[100vh] overflow-hidden bg-[var(--color-canvas-dark)] text-[var(--color-body)] flex">
+        <Sidebar 
         active={active} 
         onChange={setActive} 
         collapsed={collapsed} 
@@ -263,7 +268,17 @@ export default function Home() {
         <Settings size={20} />
       </button>
 
-      <BottomNav active={active} onChange={setActive} />
+      <BottomNav 
+        active={active} 
+        onChange={setActive} 
+        onSwitchDb={() => setDbReady(false)}
+        onCloseDb={() => {
+          localStorage.removeItem(LAST_DB_KEY);
+          setLastDb(null);
+          setDbReady(false);
+          window.location.reload();
+        }}
+      />
 
       {settingsOpen && (
         <div className="fixed inset-0 z-50 flex justify-end">
@@ -282,5 +297,6 @@ export default function Home() {
         </div>
       )}
     </div>
+    </>
   );
 }

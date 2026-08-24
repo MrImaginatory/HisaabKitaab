@@ -1,5 +1,6 @@
 "use client";
-import { LayoutDashboard, Receipt, Wallet, Tag, FileText, User, CreditCard, ChevronLeft, ChevronRight } from "lucide-react";
+import { useState } from "react";
+import { LayoutDashboard, Receipt, Wallet, Tag, FileText, User, CreditCard, ChevronLeft, ChevronRight, LayoutGrid, X } from "lucide-react";
 
 export type PageKey = "dashboard" | "transactions" | "accounts" | "category" | "paymentMedium" | "statement" | "profile";
 
@@ -10,6 +11,19 @@ export const NAV = [
   { key: "category" as PageKey, label: "Category", icon: Tag },
   { key: "paymentMedium" as PageKey, label: "Payment Medium", icon: CreditCard },
   { key: "statement" as PageKey, label: "Statement", icon: FileText },
+  { key: "profile" as PageKey, label: "Profile", icon: User },
+];
+
+const MAIN_TABS = [
+  { key: "dashboard" as PageKey, label: "Dashboard", icon: LayoutDashboard },
+  { key: "transactions" as PageKey, label: "Transactions", icon: Receipt },
+  { key: "accounts" as PageKey, label: "Accounts", icon: Wallet },
+  { key: "statement" as PageKey, label: "Statement", icon: FileText },
+];
+
+const MANAGE_TABS = [
+  { key: "category" as PageKey, label: "Category", icon: Tag },
+  { key: "paymentMedium" as PageKey, label: "Payment Medium", icon: CreditCard },
   { key: "profile" as PageKey, label: "Profile", icon: User },
 ];
 
@@ -122,22 +136,99 @@ export function Sidebar({
   );
 }
 
-export function BottomNav({ active, onChange }: { active: PageKey; onChange: (k: PageKey) => void }) {
+
+export function BottomNav({ 
+  active, 
+  onChange,
+  onSwitchDb,
+  onCloseDb
+}: { 
+  active: PageKey; 
+  onChange: (k: PageKey) => void;
+  onSwitchDb: () => void;
+  onCloseDb: () => void;
+}) {
+  const [showManage, setShowManage] = useState(false);
+  
+  const isManageActive = MANAGE_TABS.some(t => t.key === active);
+
   return (
-    <nav className="sm:hidden fixed bottom-0 left-0 right-0 h-[64px] bg-[var(--color-surface-card-dark)] border-t border-[var(--color-hairline-on-dark)] flex items-center justify-around px-2 z-40">
-      {NAV.map((item) => {
-        const isActive = item.key === active;
-        return (
-          <button
-            key={item.key}
-            onClick={() => onChange(item.key)}
-            className={`flex flex-col items-center justify-center w-full h-full gap-1 transition ${isActive ? "text-[var(--color-primary)]" : "text-[var(--color-muted-strong)] hover:text-white"}`}
-          >
-            <item.icon size={20} strokeWidth={isActive ? 2.5 : 2} />
-            <span className="text-[10px] font-bold tracking-wide">{item.label}</span>
-          </button>
-        );
-      })}
-    </nav>
+    <>
+      {showManage && (
+        <div className="sm:hidden fixed inset-0 z-40 flex flex-col justify-end">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowManage(false)} />
+          <div className="relative bg-[var(--color-surface-card-dark)] border-t border-[var(--color-hairline-on-dark)] rounded-t-[20px] p-4 pb-24 shadow-[0_-8px_32px_rgba(0,0,0,0.5)] animate-in slide-in-from-bottom-full duration-200">
+            <div className="flex items-center justify-between mb-4 px-2">
+              <h3 className="text-[14px] font-bold text-white tracking-wide">Manage</h3>
+              <button onClick={() => setShowManage(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-[var(--color-surface-elevated-dark)] text-[var(--color-muted)] hover:text-white transition">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              {MANAGE_TABS.map(item => (
+                <button
+                  key={item.key}
+                  onClick={() => {
+                    onChange(item.key);
+                    setShowManage(false);
+                  }}
+                  className={`flex flex-col items-center justify-center gap-2 p-4 rounded-[12px] border transition ${
+                    active === item.key 
+                      ? "bg-[var(--color-primary)]/10 border-[var(--color-primary)]/50 text-[var(--color-primary)]" 
+                      : "bg-[var(--color-surface-elevated-dark)] border-[var(--color-hairline-on-dark)] text-white hover:border-[var(--color-primary)]/30"
+                  }`}
+                >
+                  <item.icon size={24} strokeWidth={active === item.key ? 2 : 1.5} />
+                  <span className="text-[11px] font-semibold text-center leading-tight">{item.label}</span>
+                </button>
+              ))}
+            </div>
+            
+            {/* DB Controls for mobile */}
+            <div className="mt-6 flex items-center justify-between gap-3 pt-4 border-t border-[var(--color-hairline-on-dark)]">
+              <button 
+                onClick={() => { setShowManage(false); onSwitchDb(); }} 
+                className="flex-1 h-10 rounded-[8px] bg-[var(--color-surface-card-dark)] border border-[var(--color-hairline-on-dark)] text-[12px] font-bold text-[var(--color-muted-strong)] hover:text-white transition"
+              >
+                Switch DB
+              </button>
+              <button 
+                onClick={() => { setShowManage(false); onCloseDb(); }} 
+                className="flex-1 h-10 rounded-[8px] bg-transparent border border-[var(--color-hairline-on-dark)] text-[12px] font-bold text-[var(--color-trading-down)] hover:bg-[var(--color-trading-down)]/10 transition"
+              >
+                Close DB
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 h-[64px] bg-[var(--color-surface-card-dark)] border-t border-[var(--color-hairline-on-dark)] flex items-center justify-around px-2 z-50 pb-safe">
+        {MAIN_TABS.map((item) => {
+          const isActive = item.key === active && !showManage;
+          return (
+            <button
+              key={item.key}
+              onClick={() => {
+                onChange(item.key);
+                setShowManage(false);
+              }}
+              className={`flex flex-col items-center justify-center w-[20%] h-full gap-1 transition ${isActive ? "text-[var(--color-primary)]" : "text-[var(--color-muted-strong)] hover:text-white"}`}
+            >
+              <item.icon size={20} strokeWidth={isActive ? 2.5 : 2} />
+              <span className="text-[10px] font-bold tracking-wide truncate max-w-full px-1">{item.label}</span>
+            </button>
+          );
+        })}
+        
+        <button
+          onClick={() => setShowManage(!showManage)}
+          className={`flex flex-col items-center justify-center w-[20%] h-full gap-1 transition ${(isManageActive || showManage) ? "text-[var(--color-primary)]" : "text-[var(--color-muted-strong)] hover:text-white"}`}
+        >
+          <LayoutGrid size={20} strokeWidth={(isManageActive || showManage) ? 2.5 : 2} />
+          <span className="text-[10px] font-bold tracking-wide">Manage</span>
+        </button>
+      </nav>
+    </>
   );
 }

@@ -155,10 +155,11 @@ export function StatementPage() {
       </div>
 
       {/* Toolbar */}
-      <div className="mt-6 shrink-0 rounded-[12px] bg-[var(--color-surface-card-dark)] border border-[var(--color-hairline-on-dark)] p-4">
-        <div className="flex flex-wrap items-center gap-3">
+      <div className="mt-6 shrink-0 rounded-[12px] bg-[var(--color-surface-card-dark)] border border-[var(--color-hairline-on-dark)] p-4 flex flex-col gap-4">
+        {/* Filters */}
+        <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-3">
           {/* Period */}
-          <div className="w-[170px]">
+          <div className="w-full sm:w-[170px]">
             <Select
               value={period}
               onChange={(v) => { setPeriod(v as PeriodPreset); setPage(0); }}
@@ -168,7 +169,7 @@ export function StatementPage() {
           </div>
 
           {/* Account filter */}
-          <div className="w-[180px]">
+          <div className="w-full sm:w-[180px]">
             <Select
               value={selectedAccount}
               onChange={(v) => { setSelectedAccount(v); setPage(0); }}
@@ -179,49 +180,54 @@ export function StatementPage() {
 
           {/* Custom range */}
           {period === "custom" && (
-            <>
-              <div className="w-[150px]">
+            <div className="w-full sm:w-auto flex items-center gap-2">
+              <div className="flex-1 sm:w-[150px]">
                 <DatePicker label="" value={customFrom} onChange={(v) => { setCustomFrom(v); setPage(0); }} placeholder="From" min={minDate} />
               </div>
-              <span className="text-[11px] font-bold text-[var(--color-muted)]">→</span>
-              <div className="w-[150px]">
+              <span className="text-[11px] font-bold text-[var(--color-muted)] shrink-0">→</span>
+              <div className="flex-1 sm:w-[150px]">
                 <DatePicker label="" value={customTo} onChange={(v) => { setCustomTo(v); setPage(0); }} placeholder="To" min={minDate} />
               </div>
-            </>
+            </div>
           )}
-
-          <span className="ml-auto" />
-
-          {/* Export buttons */}
-          <button
-            onClick={() => handlePDF(false)}
-            disabled={rows.length === 0}
-            className="h-8 px-3 rounded-[6px] bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] text-[11px] font-bold text-[var(--color-muted-strong)] hover:text-white hover:border-[var(--color-primary)]/30 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
-          >
-            <FileText size={13} /> PDF
-          </button>
-          <button
-            onClick={() => handlePDF(true)}
-            disabled={rows.length === 0 || !getProfile().watermark}
-            title={!getProfile().watermark ? "Set watermark text in Profile first" : "Download PDF with watermark"}
-            className="h-8 px-3 rounded-[6px] bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] text-[11px] font-bold text-[var(--color-muted-strong)] hover:text-white hover:border-[var(--color-primary)]/30 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
-          >
-            <FileText size={13} /> PDF + Watermark
-          </button>
-          <button
-            onClick={handleExcel}
-            disabled={rows.length === 0}
-            className="h-8 px-3 rounded-[6px] bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] text-[11px] font-bold text-[var(--color-muted-strong)] hover:text-white hover:border-[var(--color-primary)]/30 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
-          >
-            <FileSpreadsheet size={13} /> Excel
-          </button>
         </div>
 
-        {/* Range + count info */}
-        <div className="mt-3 flex items-center gap-2 text-[11px] text-[var(--color-muted)]">
-          <CalendarRange size={12} />
-          Showing <span className="font-num text-white">{range.start}</span> → <span className="font-num text-white">{range.end}</span>
-          <span className="ml-auto">{rows.length} transaction{rows.length === 1 ? "" : "s"}</span>
+        {/* Exports & Info */}
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-4 pt-4 border-t border-[var(--color-hairline-on-dark)]">
+          {/* Range + count info */}
+          <div className="flex items-center justify-between sm:justify-start w-full sm:w-auto gap-3 text-[11px] text-[var(--color-muted)]">
+            <div className="flex items-center gap-2">
+              <CalendarRange size={12} className="shrink-0" />
+              <span className="truncate">Showing <span className="font-num text-white">{range.start}</span> → <span className="font-num text-white">{range.end}</span></span>
+            </div>
+            <span className="shrink-0">{rows.length} transaction{rows.length === 1 ? "" : "s"}</span>
+          </div>
+
+          {/* Export buttons */}
+          <div className="grid grid-cols-2 sm:flex items-center gap-2 w-full sm:w-auto">
+            <button
+              onClick={() => handlePDF(false)}
+              disabled={rows.length === 0}
+              className="w-full sm:w-auto justify-center h-8 px-3 rounded-[6px] bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] text-[11px] font-bold text-[var(--color-muted-strong)] hover:text-white hover:border-[var(--color-primary)]/30 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+            >
+              <FileText size={13} className="shrink-0" /> <span className="truncate">PDF</span>
+            </button>
+            <button
+              onClick={handleExcel}
+              disabled={rows.length === 0}
+              className="w-full sm:w-auto justify-center h-8 px-3 rounded-[6px] bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] text-[11px] font-bold text-[var(--color-muted-strong)] hover:text-white hover:border-[var(--color-primary)]/30 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+            >
+              <FileSpreadsheet size={13} className="shrink-0" /> <span className="truncate">Excel</span>
+            </button>
+            <button
+              onClick={() => handlePDF(true)}
+              disabled={rows.length === 0 || !getProfile().watermark}
+              title={!getProfile().watermark ? "Set watermark text in Profile first" : "Download PDF with watermark"}
+              className="col-span-2 sm:col-span-1 w-full sm:w-auto justify-center h-8 px-3 rounded-[6px] bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] text-[11px] font-bold text-[var(--color-muted-strong)] hover:text-white hover:border-[var(--color-primary)]/30 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+            >
+              <FileText size={13} className="shrink-0" /> <span className="truncate">PDF + Watermark</span>
+            </button>
+          </div>
         </div>
       </div>
 
