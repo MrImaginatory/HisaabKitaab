@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Clock, FolderOpen, Download, Settings, X } from "lucide-react";
+import { Clock, FolderOpen, Download, Settings, X, Share2 } from "lucide-react";
 import { Sidebar, BottomNav, PageKey } from "@/components/layout/Sidebar";
 import { CategoryPage } from "@/components/category/CategoryPage";
 import { AccountsPage } from "@/components/accounts/AccountsPage";
@@ -18,6 +18,17 @@ import { createBlankDBBytes, downloadCurrentDB, openDBFromFile, getDB, setDBFrom
 import { SplashScreen } from "@/components/layout/SplashScreen";
 
 const LAST_DB_KEY = "hk_last_db_name";
+
+const SocialIcon = ({ platform }: { platform: string }) => {
+  switch (platform) {
+    case "github": return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>;
+    case "instagram": return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>;
+    case "reddit": return <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.01 4.744c.688 0 1.25.561 1.25 1.249a1.25 1.25 0 0 1-2.498.056l-2.597-.547-.8 3.747c1.824.07 3.48.632 4.674 1.488.308-.309.73-.491 1.207-.491.968 0 1.754.786 1.754 1.754 0 .716-.435 1.333-1.01 1.614a3.111 3.111 0 0 1 .042.52c0 2.694-3.13 4.87-7.004 4.87-3.874 0-7.004-2.176-7.004-4.87 0-.183.015-.366.043-.534A1.748 1.748 0 0 1 4.028 12c0-.968.786-1.754 1.754-1.754.463 0 .898.196 1.207.49 1.207-.883 2.878-1.43 4.744-1.487l.885-4.182a.342.342 0 0 1 .14-.197.35.35 0 0 1 .238-.042l2.906.617a1.214 1.214 0 0 1 1.108-.701zM9.25 12C8.56 12 8 12.56 8 13.25c0 .69.56 1.25 1.25 1.25.69 0 1.25-.56 1.25-1.25 0-.69-.56-1.25-1.25-1.25zm5.5 0c-.69 0-1.25.56-1.25 1.25 0 .69.56 1.25 1.25 1.25.69 0 1.25-.56 1.25-1.25 0-.69-.56-1.25-1.25-1.25zm-5.466 3.99a.327.327 0 0 0-.231.094.33.33 0 0 0 0 .466c.843.84 2.484.91 2.961.91.477 0 2.105-.056 2.961-.913a.361.361 0 0 0 0-.466.336.336 0 0 0-.466 0c-.32.318-1.592.716-2.495.716-.903 0-2.175-.398-2.495-.716a.327.327 0 0 0-.235-.091z"/></svg>;
+    case "x": return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4l11.733 16h4.267l-11.733-16z"/><path d="M4 20l6.768-6.768m2.46-2.46L20 4"/></svg>;
+    case "linkedin": return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect width="4" height="12" x="2" y="9"/><circle cx="4" cy="4" r="2"/></svg>;
+    default: return null;
+  }
+};
 
 function Placeholder({ title, desc }: { title: string; desc: string }) {
   return (
@@ -47,6 +58,7 @@ export default function Home() {
   const [active, setActive] = useState<PageKey>("dashboard");
   const [collapsed, setCollapsed] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [socialsOpen, setSocialsOpen] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem(LAST_DB_KEY);
@@ -268,6 +280,14 @@ export default function Home() {
         <Settings size={20} />
       </button>
 
+      <button
+        onClick={() => setSocialsOpen(true)}
+        aria-label="Open social links"
+        className="fixed bottom-[140px] sm:bottom-[76px] right-5 z-40 w-12 h-12 rounded-full bg-[var(--color-surface-card-dark)] text-[var(--color-muted)] shadow-[0_8px_24px_rgba(0,0,0,0.35)] border border-[var(--color-hairline-on-dark)] flex items-center justify-center hover:text-white hover:border-[var(--color-primary)]/30 active:scale-95 transition"
+      >
+        <Share2 size={20} />
+      </button>
+
       <BottomNav 
         active={active} 
         onChange={setActive} 
@@ -292,6 +312,39 @@ export default function Home() {
             </div>
             <div className="flex-1 min-h-0 overflow-auto">
               <SettingsPanel />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {socialsOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px]" onClick={() => setSocialsOpen(false)} aria-hidden />
+          <div className="relative w-[320px] max-w-[92vw] h-screen max-h-[100vh] overflow-hidden bg-[var(--color-surface-card-dark)] border-l border-[var(--color-hairline-on-dark)] shadow-[-12px_0_48px_rgba(0,0,0,0.45)] flex flex-col">
+            <div className="h-[44px] shrink-0 flex items-center justify-between px-4 border-b border-[var(--color-hairline-on-dark)]">
+              <span className="text-[11px] font-bold tracking-wide text-[var(--color-muted)] uppercase">Connect</span>
+              <button onClick={() => setSocialsOpen(false)} className="w-7 h-7 rounded-[6px] bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] text-[var(--color-muted)] hover:text-white flex items-center justify-center" aria-label="Close socials">
+                <X size={14} />
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-auto p-5">
+              <div className="text-[14px] font-bold text-white mb-4">Connect with Developer</div>
+              <div className="flex flex-col gap-3">
+                {[
+                  { platform: "github", label: "GitHub", url: "https://github.com/MrImaginatory/HisaabKitaab" },
+                  { platform: "instagram", label: "Instagram", url: "https://www.instagram.com/mr.imaginatory" },
+                  { platform: "reddit", label: "Reddit", url: "https://www.reddit.com/user/Mr_Imaginatory/" },
+                  { platform: "x", label: "X", url: "https://x.com/mr_imaginatory" },
+                  { platform: "linkedin", label: "LinkedIn", url: "https://www.linkedin.com/in/prabhat-sharma-501ab12a9/" }
+                ].map(s => (
+                  <a key={s.platform} href={s.url} target="_blank" rel="noopener noreferrer" className="group h-12 px-4 flex items-center gap-3 rounded-[8px] bg-[var(--color-canvas-dark)] border border-[var(--color-hairline-on-dark)] text-[13px] font-bold text-[var(--color-muted-strong)] hover:text-[var(--color-primary)] hover:border-[var(--color-primary)]/40 hover:bg-[var(--color-surface-elevated-dark)] transition">
+                    <span className="text-[var(--color-muted)] group-hover:text-[var(--color-primary)] transition-colors">
+                      <SocialIcon platform={s.platform} />
+                    </span>
+                    {s.label}
+                  </a>
+                ))}
+              </div>
             </div>
           </div>
         </div>
