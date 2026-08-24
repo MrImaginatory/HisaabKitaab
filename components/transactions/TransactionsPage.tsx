@@ -402,7 +402,7 @@ export function TransactionsPage() {
 
           <div className="grid grid-cols-2 gap-3">
             <Input label="Amount (₹)" type="number" min="0" step="any" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" />
-            <DatePicker label="Date" value={date} onChange={setDate} />
+            <DatePicker label="Date" value={date} onChange={setDate} max={todayISO()} />
           </div>
 
           <div className="grid grid-cols-2 gap-3">

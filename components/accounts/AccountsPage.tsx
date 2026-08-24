@@ -192,7 +192,7 @@ export function AccountsPage() {
           </label>
           <Input label="Opening balance" value={balance} onChange={(e) => setBalance(e.target.value)} placeholder="e.g. 1000" inputMode="decimal" type="text" />
           <Textarea label="Description" value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Optional note — e.g. Primary account, daily expenses" rows={2} />
-          <DatePicker label="Date" value={date} onChange={setDate} placeholder="Pick date" />
+          <DatePicker label="Date" value={date} onChange={setDate} placeholder="Pick date" max={todayISO()} />
           {formErr && <div className="text-[11px] font-semibold text-[var(--color-trading-down)] flex items-center gap-1.5"><AlertTriangle size={12} /> {formErr}</div>}
           <div className="pt-2 flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setIsAddOpen(false)}>Cancel</Button>

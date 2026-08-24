@@ -182,11 +182,11 @@ export function StatementPage() {
           {period === "custom" && (
             <div className="w-full sm:w-auto flex items-center gap-2">
               <div className="flex-1 sm:w-[150px]">
-                <DatePicker label="" value={customFrom} onChange={(v) => { setCustomFrom(v); setPage(0); }} placeholder="From" min={minDate} />
+                <DatePicker label="" value={customFrom} onChange={(v) => { setCustomFrom(v); setPage(0); }} placeholder="From" min={minDate} max={todayIso()} />
               </div>
               <span className="text-[11px] font-bold text-[var(--color-muted)] shrink-0">→</span>
               <div className="flex-1 sm:w-[150px]">
-                <DatePicker label="" value={customTo} onChange={(v) => { setCustomTo(v); setPage(0); }} placeholder="To" min={minDate} />
+                <DatePicker label="" value={customTo} onChange={(v) => { setCustomTo(v); setPage(0); }} placeholder="To" min={minDate} max={todayIso()} />
               </div>
             </div>
           )}
