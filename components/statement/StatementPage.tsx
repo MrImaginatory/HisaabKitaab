@@ -1,25 +1,15 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, CalendarRange } from "lucide-react";
+import { FileSpreadsheet, FileText, ChevronLeft, ChevronRight, CalendarRange } from "lucide-react";
 import { dbGetTransactions, dbGetAccounts, dbGetCategories, dbGetPaymentMediums, Transaction, ComputedAccount, Category, PaymentMedium } from "@/lib/db";
 import { displayName } from "@/lib/stringUtils";
 import { Select } from "@/components/ui/Select";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { PeriodPreset, PERIOD_OPTIONS, getRange } from "@/lib/periods";
+import { StatementRow, AccountSummary, downloadExcel, downloadPDF } from "@/lib/exports";
 import { getProfile } from "@/lib/profile";
 
 const PAGE_SIZE = 25;
-
-interface StatementRow {
-  date: string;
-  category: string;
-  notes: string;
-  paymentMode?: string;
-  account: string;
-  credit: number;
-  debit: number;
-  remaining: number;
-}
 
 export function StatementPage() {
   const [loading, setLoading] = useState(true);
@@ -137,6 +127,21 @@ export function StatementPage() {
   const totalDebit = rows.reduce((s, r) => s + r.debit, 0);
   const symbol = getProfile().currencySymbol || "\u20B9";
 
+  // Accounts summary for PDF
+  const accountsSummary: AccountSummary[] = useMemo(() => {
+    if (selectedAccount === "all") {
+      return accounts.map(a => ({ name: displayName(a.name), openingBalance: a.openingBalance, currentBalance: a.currentBalance, accountNumber: a.accountNumber ?? "" }));
+    }
+    const a = accounts.find(acc => acc.id === selectedAccount);
+    return a ? [{ name: displayName(a.name), openingBalance: a.openingBalance, currentBalance: a.currentBalance, accountNumber: a.accountNumber ?? "" }] : [];
+  }, [accounts, selectedAccount]);
+
+  const handleExcel = () => downloadExcel(rows, range, totalCredit, totalDebit);
+  const handlePDF = async (useWatermark: boolean) => downloadPDF(
+    { rows, range, totalCredit, totalDebit, accounts: accountsSummary, watermark: useWatermark ? getProfile().watermark : undefined },
+    getProfile()
+  );
+
   return (
     <div className="h-full min-h-0 flex flex-col w-full xl:max-w-[80%] max-w-[1000px] mx-auto px-6 py-6 overflow-y-auto">
       {/* Header */}
@@ -144,7 +149,7 @@ export function StatementPage() {
         <div>
           <h1 className="text-[20px] font-bold tracking-tight text-white">Statement</h1>
           <p className="text-[12px] leading-relaxed text-[var(--color-muted-strong)] mt-1 max-w-[60ch]">
-            View transactions with running balances.
+            View transactions with running balances, and export to PDF or Excel.
           </p>
         </div>
       </div>
@@ -186,6 +191,30 @@ export function StatementPage() {
           )}
 
           <span className="ml-auto" />
+
+          {/* Export buttons */}
+          <button
+            onClick={() => handlePDF(false)}
+            disabled={rows.length === 0}
+            className="h-8 px-3 rounded-[6px] bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] text-[11px] font-bold text-[var(--color-muted-strong)] hover:text-white hover:border-[var(--color-primary)]/30 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+          >
+            <FileText size={13} /> PDF
+          </button>
+          <button
+            onClick={() => handlePDF(true)}
+            disabled={rows.length === 0 || !getProfile().watermark}
+            title={!getProfile().watermark ? "Set watermark text in Profile first" : "Download PDF with watermark"}
+            className="h-8 px-3 rounded-[6px] bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] text-[11px] font-bold text-[var(--color-muted-strong)] hover:text-white hover:border-[var(--color-primary)]/30 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+          >
+            <FileText size={13} /> PDF + Watermark
+          </button>
+          <button
+            onClick={handleExcel}
+            disabled={rows.length === 0}
+            className="h-8 px-3 rounded-[6px] bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] text-[11px] font-bold text-[var(--color-muted-strong)] hover:text-white hover:border-[var(--color-primary)]/30 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+          >
+            <FileSpreadsheet size={13} /> Excel
+          </button>
         </div>
 
         {/* Range + count info */}
