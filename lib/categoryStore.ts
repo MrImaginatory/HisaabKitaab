@@ -9,6 +9,7 @@ export interface Category {
   nameKey: string;
   type: CategoryType;
   color: string;
+  isDeleted?: boolean;
   createdAt: number;
 }
 

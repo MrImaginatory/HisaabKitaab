@@ -320,8 +320,8 @@ export function StatementPage() {
                     <div key={idx} className="bg-[var(--color-surface-card-dark)] p-4 rounded-lg shadow-md w-full font-sans border border-[var(--color-hairline-on-dark)]">
                       <div className="flex justify-between items-start mb-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full flex items-center justify-center bg-[var(--color-surface-elevated-dark)] text-white font-bold text-sm shrink-0 border border-[var(--color-hairline-on-dark)]">
-                            {r.category.slice(0, 2).toUpperCase()}
+                          <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0 border border-white/10" style={{ background: r.category === 'Self Transfer' || r.category === 'Settlement' ? "var(--color-primary)" : "var(--color-surface-elevated-dark)", color: r.category === 'Self Transfer' || r.category === 'Settlement' ? "black" : "white" }}>
+                            {r.category === 'Self Transfer' || r.category === 'Settlement' ? "TR" : r.category.slice(0, 2).toUpperCase()}
                           </div>
                           <div className="flex flex-col">
                             <h3 className="text-white font-semibold text-[14px] leading-tight max-w-[140px] truncate">

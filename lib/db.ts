@@ -241,9 +241,14 @@ function ensureSchema(database: any) {
       currencySymbol TEXT NOT NULL DEFAULT ''
     );
   `);
+
   // migrate: add currency columns if missing
   try { database.run(`ALTER TABLE profile ADD COLUMN currencyName TEXT NOT NULL DEFAULT ''`); } catch {}
   try { database.run(`ALTER TABLE profile ADD COLUMN currencySymbol TEXT NOT NULL DEFAULT ''`); } catch {}
+
+  // migrate: add isDeleted column to categories and payment_mediums if missing
+  try { database.run(`ALTER TABLE categories ADD COLUMN isDeleted BOOLEAN NOT NULL DEFAULT 0`); } catch {}
+  try { database.run(`ALTER TABLE payment_mediums ADD COLUMN isDeleted BOOLEAN NOT NULL DEFAULT 0`); } catch {}
 }
 
 export async function setDBFromBytes(bytes: Uint8Array): Promise<void> {
@@ -376,18 +381,22 @@ export interface Category {
   nameKey: string;
   type: CategoryType;
   color: string;
+  isDeleted?: boolean;
   createdAt: number;
 }
 
 export async function dbGetCategories(): Promise<Category[]> {
   const d = await getDB();
-  const res = d.exec("SELECT id, name, nameKey, type, color, createdAt FROM categories ORDER BY createdAt ASC");
+  const res = d.exec("SELECT id, name, nameKey, type, color, isDeleted, createdAt FROM categories ORDER BY isDeleted ASC, createdAt ASC");
   if (!res.length) return [];
   const cols = res[0].columns as string[];
   const vals = res[0].values as any[][];
   return vals.map((row) => {
     const o: any = {};
-    cols.forEach((c, i) => (o[c] = row[i]));
+    cols.forEach((c, i) => {
+      if (c === "isDeleted") o[c] = Boolean(row[i]);
+      else o[c] = row[i];
+    });
     return o as Category;
   });
 }
@@ -414,7 +423,7 @@ export async function dbAddCategory(c: Omit<Category, "id" | "nameKey" | "create
     createdAt: Date.now(),
   };
   try {
-    d.run("INSERT INTO categories (id, name, nameKey, type, color, createdAt) VALUES (?, ?, ?, ?, ?, ?)", [cat.id, cat.name, cat.nameKey, cat.type, cat.color, cat.createdAt]);
+    d.run("INSERT INTO categories (id, name, nameKey, type, color, isDeleted, createdAt) VALUES (?, ?, ?, ?, ?, 0, ?)", [cat.id, cat.name, cat.nameKey, cat.type, cat.color, cat.createdAt]);
     await saveDB();
     return { ok: true, category: cat };
   } catch (e: any) {
@@ -422,6 +431,21 @@ export async function dbAddCategory(c: Omit<Category, "id" | "nameKey" | "create
     if (/UNIQUE/i.test(msg)) return { ok: false, error: `Category "${rawName}" already exists` };
     return { ok: false, error: msg };
   }
+}
+
+
+export async function dbDeleteCategories(ids: string[]): Promise<void> {
+  if (!ids.length) return;
+  const d = await getDB();
+  for (const id of ids) {
+    const txCheck = d.exec(`SELECT 1 FROM transactions WHERE categoryId = '${id.replace(/'/g, "''")}' LIMIT 1`);
+    if (txCheck.length && txCheck[0].values.length) {
+      d.run("UPDATE categories SET isDeleted = 1 WHERE id = ?", [id]);
+    } else {
+      d.run("DELETE FROM categories WHERE id = ?", [id]);
+    }
+  }
+  await saveDB();
 }
 
 export async function dbDeleteCategory(id: string): Promise<void> {
@@ -648,18 +672,22 @@ export interface PaymentMedium {
   id: string;
   name: string;
   group: PaymentMediumGroup;
+  isDeleted?: boolean;
   createdAt: number;
 }
 
 export async function dbGetPaymentMediums(): Promise<PaymentMedium[]> {
   const d = await getDB();
-  const res = d.exec("SELECT id, name, grp, createdAt FROM payment_mediums ORDER BY grp, createdAt");
+  const res = d.exec("SELECT id, name, grp, isDeleted, createdAt FROM payment_mediums ORDER BY isDeleted ASC, grp, createdAt");
   if (!res.length) return [];
   const cols = res[0].columns as string[];
   const vals = res[0].values as any[][];
   return vals.map((row) => {
     const o: any = {};
-    cols.forEach((c, i) => (o[c] = row[i]));
+    cols.forEach((c, i) => {
+      if (c === "isDeleted") o[c] = Boolean(row[i]);
+      else o[c] = row[i];
+    });
     if ("grp" in o) { o.group = o.grp; delete o.grp; }
     return o as PaymentMedium;
   });
@@ -672,7 +700,7 @@ export async function dbAddPaymentMedium(name: string, group: PaymentMediumGroup
   const med: PaymentMedium = { id, name: trimmed, group, createdAt: Date.now() };
   const d = await getDB();
   try {
-    d.run("INSERT INTO payment_mediums (id, name, grp, createdAt) VALUES (?, ?, ?, ?)", [med.id, med.name, med.group, med.createdAt]);
+    d.run("INSERT INTO payment_mediums (id, name, grp, isDeleted, createdAt) VALUES (?, ?, ?, 0, ?)", [med.id, med.name, med.group, med.createdAt]);
     await saveDB();
     return { ok: true, medium: med };
   } catch (e: any) {
@@ -691,6 +719,21 @@ export async function dbUpdatePaymentMedium(id: string, name: string, group: Pay
   } catch (e: any) {
     return { ok: false, error: e?.message ?? String(e) };
   }
+}
+
+
+export async function dbDeletePaymentMediums(ids: string[]): Promise<void> {
+  if (!ids.length) return;
+  const d = await getDB();
+  for (const id of ids) {
+    const txCheck = d.exec(`SELECT 1 FROM transactions WHERE paymentMediumId = '${id.replace(/'/g, "''")}' LIMIT 1`);
+    if (txCheck.length && txCheck[0].values.length) {
+      d.run("UPDATE payment_mediums SET isDeleted = 1 WHERE id = ?", [id]);
+    } else {
+      d.run("DELETE FROM payment_mediums WHERE id = ?", [id]);
+    }
+  }
+  await saveDB();
 }
 
 export async function dbDeletePaymentMedium(id: string): Promise<{ ok: boolean; error?: string }> {

@@ -215,8 +215,8 @@ export function DashboardPage() {
           return (
             <div key={t.id} className="flex items-center justify-between p-3 border-b border-[var(--color-hairline-on-dark)] last:border-0 hover:bg-[var(--color-surface-elevated-dark)] transition">
               <div className="flex items-center gap-3">
-                <span className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold" style={{ background: c ? c.color : "var(--color-surface-elevated-dark)", color: "black" }}>
-                  {c ? c.name.slice(0, 2).toUpperCase() : "?"}
+                <span className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold" style={{ background: t.type === 'transfer' ? "var(--color-primary)" : (c ? c.color : "var(--color-surface-elevated-dark)"), color: "black" }}>
+                  {t.type === 'transfer' ? "TR" : (c ? c.name.slice(0, 2).toUpperCase() : "?")}
                 </span>
                 <div className="min-w-0">
                   <div className="text-[13px] font-semibold text-white truncate">{t.reason}</div>

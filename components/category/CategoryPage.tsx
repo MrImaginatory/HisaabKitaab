@@ -1,13 +1,13 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Upload, Download, Trash2, AlertTriangle, Check, X, LayoutList, LayoutGrid, Pencil } from "lucide-react";
+import { Plus, Upload, Download, Trash2, AlertTriangle, Check, X, LayoutList, LayoutGrid, Pencil, CheckSquare, Square } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { DataTable, ColumnDef } from "@/components/ui/DataTable";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Category, CategoryType, ParsedCsvRow, analyzeForPreview, parseCategoryCsv, sampleCsv } from "@/lib/categoryStore";
-import { dbGetCategories, dbAddCategory, dbDeleteCategory, dbUpdateCategory } from "@/lib/db";
+import { dbGetCategories, dbAddCategory, dbDeleteCategories, dbUpdateCategory } from "@/lib/db";
 import { displayName } from "@/lib/stringUtils";
 
 export function CategoryPage() {
@@ -22,6 +22,30 @@ export function CategoryPage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
+  const [bulkConfirmText, setBulkConfirmText] = useState("");
+
+  const toggleSelect = (id: string) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedIds(next);
+  };
+
+  const handleBulkDelete = async () => {
+    if (bulkConfirmText !== "confirm") {
+      showToast("You must type 'confirm' exactly.");
+      return;
+    }
+    await dbDeleteCategories(Array.from(selectedIds));
+    setBulkConfirmOpen(false);
+    setBulkConfirmText("");
+    setSelectedIds(new Set());
+    await refresh();
+    showToast(`Deleted selected categories.`);
+  };
 
   const [previewOpen, setPreviewOpen] = useState(false);
   const [parsedRows, setParsedRows] = useState<ParsedCsvRow[]>([]);
@@ -80,7 +104,7 @@ export function CategoryPage() {
 
   const handleDelete = async (id: string, n: string) => {
     if (!confirm(`Delete category "${displayName(n)}"?`)) return;
-    await dbDeleteCategory(id);
+    await dbDeleteCategories([id]);
     await refresh();
     showToast(`Deleted "${displayName(n)}"`);
   };
@@ -153,6 +177,16 @@ export function CategoryPage() {
 
   const columns: ColumnDef<Category>[] = useMemo(() => [
     {
+      header: "",
+      cell: (c) => (
+        <button onClick={(e) => { e.stopPropagation(); toggleSelect(c.id); }} className="w-5 h-5 rounded flex items-center justify-center border border-[var(--color-hairline-on-dark)] hover:border-white transition shrink-0" style={{ background: selectedIds.has(c.id) ? "var(--color-primary)" : "transparent", color: selectedIds.has(c.id) ? "black" : "transparent" }}>
+          {selectedIds.has(c.id) ? <Check size={14} strokeWidth={3} /> : null}
+        </button>
+      ),
+      className: "w-[50px] pr-0",
+      sortable: false
+    },
+    {
       header: "Category",
       accessorKey: "name",
       cell: (c) => (
@@ -189,7 +223,7 @@ export function CategoryPage() {
         </div>
       ),
     }
-  ], []);
+  ], [selectedIds]);
 
   const downloadSample = () => {
     const blob = new Blob([sampleCsv()], { type: "text/csv" });
@@ -249,6 +283,44 @@ export function CategoryPage() {
         </div>
       </Dialog>
 
+      {selectedIds.size > 0 && (
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-[var(--color-surface-card-dark)] border border-[var(--color-primary)]/40 shadow-[0_4px_24px_rgba(0,0,0,0.6)] px-4 py-3 rounded-full flex items-center gap-4 z-50">
+          <span className="text-[13px] font-bold text-white px-2">{selectedIds.size} selected</span>
+          <div className="w-px h-4 bg-[var(--color-hairline-on-dark)]"></div>
+          <Button variant="tradingDown" size="sm" onClick={() => setBulkConfirmOpen(true)}>
+            <Trash2 size={14} /> Delete Selected
+          </Button>
+          <button onClick={() => setSelectedIds(new Set())} className="p-1.5 rounded-full hover:bg-[var(--color-surface-elevated-dark)] text-[var(--color-muted)] hover:text-white transition">
+            <X size={16} />
+          </button>
+        </div>
+      )}
+      
+      <Dialog open={bulkConfirmOpen} onClose={() => { setBulkConfirmOpen(false); setBulkConfirmText(""); }} title="Confirm Deletion" showClose maxWidth="max-w-[400px]">
+        <div className="flex flex-col gap-4">
+          <div className="text-[13px] text-[var(--color-muted-strong)] leading-relaxed">
+            You are about to delete <b>{selectedIds.size}</b> categories. Categories linked to existing transactions will be soft-deleted (hidden from dropdowns but kept for history). Unlinked categories will be permanently erased.
+          </div>
+          <div className="bg-[var(--color-trading-down)]/10 border border-[var(--color-trading-down)]/20 p-3 rounded-[8px] flex items-start gap-3">
+            <AlertTriangle className="text-[var(--color-trading-down)] shrink-0 mt-0.5" size={16} />
+            <div className="text-[12px] text-[var(--color-trading-down)]/90 leading-relaxed font-medium">
+              Please type <span className="font-mono bg-[var(--color-trading-down)]/20 px-1.5 py-0.5 rounded text-[var(--color-trading-down)]">confirm</span> below to proceed.
+            </div>
+          </div>
+          <Input 
+            label="Confirmation" 
+            placeholder="Type 'confirm'..." 
+            value={bulkConfirmText} 
+            onChange={(e) => setBulkConfirmText(e.target.value)} 
+          />
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="secondary" onClick={() => { setBulkConfirmOpen(false); setBulkConfirmText(""); }}>Cancel</Button>
+            <Button variant="tradingDown" onClick={handleBulkDelete} disabled={bulkConfirmText !== "confirm"}>Delete</Button>
+          </div>
+        </div>
+      </Dialog>
+
+
       <div className="mt-4 flex-1 min-h-0 rounded-[12px] bg-[var(--color-surface-card-dark)] border border-[var(--color-hairline-on-dark)] overflow-hidden flex flex-col">
         <div className="p-4 border-b border-[var(--color-hairline-on-dark)] flex flex-col sm:flex-row sm:items-center gap-3 bg-[var(--color-canvas-dark)] shrink-0">
           <div className="flex items-center gap-3">
@@ -281,11 +353,11 @@ export function CategoryPage() {
                   <div key={c.id} className="bg-[var(--color-surface-card-dark)] p-4 rounded-lg shadow-md w-full font-sans border border-[var(--color-hairline-on-dark)]">
                     <div className="flex justify-between items-start mb-2">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full flex items-center justify-center text-[var(--color-canvas-dark)] font-bold text-sm shrink-0 border border-white/15" style={{ background: c.color }}>
-                          {c.name.slice(0, 2).toUpperCase()}
-                        </div>
+                        <button onClick={() => toggleSelect(c.id)} className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shrink-0 border relative overflow-hidden transition-all" style={{ background: selectedIds.has(c.id) ? "var(--color-primary)" : c.color, color: selectedIds.has(c.id) ? "black" : "var(--color-canvas-dark)", borderColor: selectedIds.has(c.id) ? "var(--color-primary)" : "rgba(255,255,255,0.15)" }}>
+                          {selectedIds.has(c.id) ? <Check size={20} strokeWidth={3} /> : c.name.slice(0, 2).toUpperCase()}
+                        </button>
                         <div className="flex flex-col">
-                          <h3 className="text-white font-semibold text-[14px] leading-tight max-w-[160px] truncate">
+                          <h3 className={`font-semibold text-[14px] leading-tight max-w-[160px] truncate ${c.isDeleted ? "text-[var(--color-muted)] line-through" : "text-white"}`}>
                             {displayName(c.name)}
                           </h3>
                           <span className="text-[var(--color-muted)] font-num text-[11px] mt-0.5 tracking-wide truncate">
@@ -293,10 +365,12 @@ export function CategoryPage() {
                           </span>
                         </div>
                       </div>
-                      <div className="text-right shrink-0 ml-2">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${c.type === "income" ? "bg-[var(--color-trading-up)]/12 text-[var(--color-trading-up)] border-[var(--color-trading-up)]/20" : "bg-[var(--color-trading-down)]/12 text-[var(--color-trading-down)] border-[var(--color-trading-down)]/20"}`}>
-                          {displayName(c.type)}
-                        </span>
+                      <div className="flex items-center gap-3 shrink-0 ml-2">
+                        <div className="text-right">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${c.type === "income" ? "bg-[var(--color-trading-up)]/12 text-[var(--color-trading-up)] border-[var(--color-trading-up)]/20" : "bg-[var(--color-trading-down)]/12 text-[var(--color-trading-down)] border-[var(--color-trading-down)]/20"}`}>
+                            {displayName(c.type)}
+                          </span>
+                        </div>
                       </div>
                     </div>
                     

@@ -1,12 +1,12 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Trash2, Pencil, Wifi, Banknote, LayoutList, LayoutGrid } from "lucide-react";
+import { Plus, Trash2, Pencil, Wifi, Banknote, LayoutList, LayoutGrid, Check, X, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { DataTable, ColumnDef } from "@/components/ui/DataTable";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
-import { PaymentMedium, PaymentMediumGroup, dbGetPaymentMediums, dbAddPaymentMedium, dbUpdatePaymentMedium, dbDeletePaymentMedium } from "@/lib/db";
+import { PaymentMedium, PaymentMediumGroup, dbGetPaymentMediums, dbAddPaymentMedium, dbUpdatePaymentMedium, dbDeletePaymentMediums } from "@/lib/db";
 import { displayName } from "@/lib/stringUtils";
 
 export function PaymentMediumPage() {
@@ -20,6 +20,31 @@ export function PaymentMediumPage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
+  const [bulkConfirmText, setBulkConfirmText] = useState("");
+
+  const toggleSelect = (id: string) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedIds(next);
+  };
+
+  const handleBulkDelete = async () => {
+    if (bulkConfirmText !== "confirm") {
+      showToast("You must type 'confirm' exactly.");
+      return;
+    }
+    await dbDeletePaymentMediums(Array.from(selectedIds));
+    setBulkConfirmOpen(false);
+    setBulkConfirmText("");
+    setSelectedIds(new Set());
+    await refresh();
+    showToast(`Deleted selected payment mediums.`);
+  };
+
 
   const refresh = async () => {
     const meds = await dbGetPaymentMediums();
@@ -72,7 +97,7 @@ export function PaymentMediumPage() {
 
   const handleDelete = async (m: PaymentMedium) => {
     if (!confirm(`Delete payment medium "${displayName(m.name)}"?`)) return;
-    await dbDeletePaymentMedium(m.id);
+    await dbDeletePaymentMediums([m.id]);
     showToast("Payment medium deleted");
     await refresh();
   };
@@ -85,12 +110,22 @@ export function PaymentMediumPage() {
 
   const columns: ColumnDef<PaymentMedium>[] = [
     {
+      header: "",
+      cell: (m) => (
+        <button onClick={(e) => { e.stopPropagation(); toggleSelect(m.id); }} className="w-5 h-5 rounded flex items-center justify-center border border-[var(--color-hairline-on-dark)] hover:border-white transition shrink-0" style={{ background: selectedIds.has(m.id) ? "var(--color-primary)" : "transparent", color: selectedIds.has(m.id) ? "black" : "transparent" }}>
+          {selectedIds.has(m.id) ? <Check size={14} strokeWidth={3} /> : null}
+        </button>
+      ),
+      className: "w-[50px] pr-0",
+      sortable: false
+    },
+    {
       header: "Name",
       accessorKey: "name",
       cell: (m) => (
         <div className="flex items-center gap-2">
           {m.group === "online" ? <Wifi className="w-3.5 h-3.5 text-[var(--color-accent)]" /> : <Banknote className="w-3.5 h-3.5 text-[var(--color-trading-up)]" />}
-          <span className="font-medium text-[13px]">{displayName(m.name)}</span>
+          <span className={`font-medium text-[13px] ${m.isDeleted ? "text-[var(--color-muted)] line-through" : "text-white"}`}>{displayName(m.name)}</span>
         </div>
       ),
     },
@@ -167,9 +202,9 @@ export function PaymentMediumPage() {
                   <div key={m.id} className="bg-[var(--color-surface-card-dark)] p-4 rounded-lg shadow-md w-full font-sans border border-[var(--color-hairline-on-dark)]">
                     <div className="flex justify-between items-start mb-2">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full flex items-center justify-center bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] shrink-0">
-                          {m.group === "online" ? <Wifi size={16} className="text-[var(--color-accent)]" /> : <Banknote size={16} className="text-[var(--color-trading-up)]" />}
-                        </div>
+                        <button onClick={() => toggleSelect(m.id)} className="w-10 h-10 rounded-full flex items-center justify-center border shrink-0 relative overflow-hidden transition-all" style={{ background: selectedIds.has(m.id) ? "var(--color-primary)" : "var(--color-surface-elevated-dark)", color: selectedIds.has(m.id) ? "black" : (m.group === "online" ? "var(--color-accent)" : "var(--color-trading-up)"), borderColor: selectedIds.has(m.id) ? "var(--color-primary)" : "var(--color-hairline-on-dark)" }}>
+                          {selectedIds.has(m.id) ? <Check size={20} strokeWidth={3} /> : (m.group === "online" ? <Wifi className="w-4 h-4" /> : <Banknote className="w-4 h-4" />)}
+                        </button>
                         <h3 className="text-white font-semibold text-[14px] leading-tight max-w-[160px] truncate">
                           {displayName(m.name)}
                         </h3>
@@ -251,6 +286,44 @@ export function PaymentMediumPage() {
           </div>
         </div>
       </Dialog>
+
+      {selectedIds.size > 0 && (
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-[var(--color-surface-card-dark)] border border-[var(--color-primary)]/40 shadow-[0_4px_24px_rgba(0,0,0,0.6)] px-4 py-3 rounded-full flex items-center gap-4 z-50">
+          <span className="text-[13px] font-bold text-white px-2">{selectedIds.size} selected</span>
+          <div className="w-px h-4 bg-[var(--color-hairline-on-dark)]"></div>
+          <Button variant="tradingDown" size="sm" onClick={() => setBulkConfirmOpen(true)}>
+            <Trash2 size={14} /> Delete Selected
+          </Button>
+          <button onClick={() => setSelectedIds(new Set())} className="p-1.5 rounded-full hover:bg-[var(--color-surface-elevated-dark)] text-[var(--color-muted)] hover:text-white transition">
+            <X size={16} />
+          </button>
+        </div>
+      )}
+      
+      <Dialog open={bulkConfirmOpen} onClose={() => { setBulkConfirmOpen(false); setBulkConfirmText(""); }} title="Confirm Deletion" showClose maxWidth="max-w-[400px]">
+        <div className="flex flex-col gap-4">
+          <div className="text-[13px] text-[var(--color-muted-strong)] leading-relaxed">
+            You are about to delete <b>{selectedIds.size}</b> payment mediums. Mediums linked to existing transactions will be soft-deleted (hidden from dropdowns but kept for history). Unlinked mediums will be permanently erased.
+          </div>
+          <div className="bg-[var(--color-trading-down)]/10 border border-[var(--color-trading-down)]/20 p-3 rounded-[8px] flex items-start gap-3">
+            <AlertTriangle className="text-[var(--color-trading-down)] shrink-0 mt-0.5" size={16} />
+            <div className="text-[12px] text-[var(--color-trading-down)]/90 leading-relaxed font-medium">
+              Please type <span className="font-mono bg-[var(--color-trading-down)]/20 px-1.5 py-0.5 rounded text-[var(--color-trading-down)]">confirm</span> below to proceed.
+            </div>
+          </div>
+          <Input 
+            label="Confirmation" 
+            placeholder="Type 'confirm'..." 
+            value={bulkConfirmText} 
+            onChange={(e) => setBulkConfirmText(e.target.value)} 
+          />
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="secondary" onClick={() => { setBulkConfirmOpen(false); setBulkConfirmText(""); }}>Cancel</Button>
+            <Button variant="tradingDown" onClick={handleBulkDelete} disabled={bulkConfirmText !== "confirm"}>Delete</Button>
+          </div>
+        </div>
+      </Dialog>
+
 
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[var(--color-surface-card-dark)] border border-[var(--color-hairline-on-dark)] text-[var(--color-text)] text-[12px] font-semibold px-4 py-2.5 rounded-[10px] shadow-lg z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">

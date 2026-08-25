@@ -209,7 +209,7 @@ export function TransactionsPage() {
     setDeleteTransactionState(null);
   };
 
-  const filteredCategories = useMemo(() => categories.filter(c => c.type === type), [categories, type]);
+  const filteredCategories = useMemo(() => categories.filter(c => c.type === type && (!c.isDeleted || c.id === categoryId)), [categories, type, categoryId]);
 
   // Auto-select category and account if they are empty
   useEffect(() => {
@@ -513,7 +513,7 @@ export function TransactionsPage() {
                 <Select 
                   value={categoryId} 
                   onChange={setCategoryId} 
-                  options={filteredCategories.map(c => ({ value: c.id, label: displayName(c.name) }))} 
+                  options={filteredCategories.map(c => ({ value: c.id, label: displayName(c.name) + (c.isDeleted ? ' (Deleted)' : '') }))} 
                   ariaLabel="Select Category" 
                 />
               </label>
@@ -534,7 +534,7 @@ export function TransactionsPage() {
               <Select
                 value={paymentMediumId}
                 onChange={setPaymentMediumId}
-                options={paymentMediums.filter(m => m.group === paymentGroup).map(m => ({ value: m.id, label: displayName(m.name) }))}
+                options={paymentMediums.filter(m => m.group === paymentGroup && (!m.isDeleted || m.id === paymentMediumId)).map(m => ({ value: m.id, label: displayName(m.name) + (m.isDeleted ? ' (Deleted)' : '') }))}
                 ariaLabel="Select Payment Medium"
               />
             </label>
