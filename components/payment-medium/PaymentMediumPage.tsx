@@ -288,13 +288,13 @@ export function PaymentMediumPage() {
       </Dialog>
 
       {selectedIds.size > 0 && (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-[var(--color-surface-card-dark)] border border-[var(--color-primary)]/40 shadow-[0_4px_24px_rgba(0,0,0,0.6)] px-4 py-3 rounded-full flex items-center gap-4 z-50">
-          <span className="text-[13px] font-bold text-white px-2">{selectedIds.size} selected</span>
-          <div className="w-px h-4 bg-[var(--color-hairline-on-dark)]"></div>
-          <Button variant="tradingDown" size="sm" onClick={() => setBulkConfirmOpen(true)}>
-            <Trash2 size={14} /> Delete Selected
+        <div className="absolute bottom-24 md:bottom-6 left-1/2 -translate-x-1/2 bg-[var(--color-surface-card-dark)] border border-[var(--color-primary)]/40 shadow-[0_4px_24px_rgba(0,0,0,0.6)] px-3 py-2 md:px-4 md:py-3 rounded-full flex items-center gap-2 md:gap-4 z-50 w-[max-content] max-w-[90vw]">
+          <span className="text-[11px] md:text-[13px] font-bold text-white px-1 md:px-2 whitespace-nowrap">{selectedIds.size} selected</span>
+          <div className="w-px h-4 bg-[var(--color-hairline-on-dark)] shrink-0"></div>
+          <Button variant="tradingDown" size="sm" onClick={() => setBulkConfirmOpen(true)} className="whitespace-nowrap text-[11px] md:text-[12px] px-2 py-1 md:px-3 md:py-1.5 h-auto">
+            <Trash2 size={14} className="shrink-0" /> Delete
           </Button>
-          <button onClick={() => setSelectedIds(new Set())} className="p-1.5 rounded-full hover:bg-[var(--color-surface-elevated-dark)] text-[var(--color-muted)] hover:text-white transition">
+          <button onClick={() => setSelectedIds(new Set())} className="p-1.5 rounded-full hover:bg-[var(--color-surface-elevated-dark)] text-[var(--color-muted)] hover:text-white transition shrink-0">
             <X size={16} />
           </button>
         </div>
