@@ -136,6 +136,10 @@ function ensureSchema(database: any) {
   `);
   // migrate: add accountNumber column if missing
   try { database.run(`ALTER TABLE accounts ADD COLUMN accountNumber TEXT NOT NULL DEFAULT ''`); } catch {}
+  // migrate: add allowNegativeBalance column if missing
+  try { database.run(`ALTER TABLE accounts ADD COLUMN allowNegativeBalance INTEGER NOT NULL DEFAULT 0`); } catch {}
+  // migrate: add isClosed column if missing
+  try { database.run(`ALTER TABLE accounts ADD COLUMN isClosed INTEGER NOT NULL DEFAULT 0`); } catch {}
   // migrate legacy rows to lowercase (spec: everything saved lowercase)
   try {
     database.run(`UPDATE categories SET name = lower(name), nameKey = lower(nameKey), type = lower(type), color = lower(color) WHERE lower(name) != name OR lower(nameKey) != nameKey OR lower(type) != type OR lower(color) != color`);
@@ -143,12 +147,45 @@ function ensureSchema(database: any) {
   try {
     database.run(`UPDATE accounts SET name = lower(name), nameKey = lower(nameKey), description = lower(description) WHERE lower(name) != name OR lower(nameKey) != nameKey OR lower(description) != description`);
   } catch {}
+  try {
+    const tableInfo = database.exec(`SELECT sql FROM sqlite_master WHERE type='table' AND name='transactions'`);
+    if (tableInfo.length && tableInfo[0].values.length) {
+      const sql = tableInfo[0].values[0][0] as string;
+      if (!sql.includes("'transfer'")) {
+        database.run(`
+          CREATE TABLE transactions_new (
+            id TEXT PRIMARY KEY,
+            type TEXT NOT NULL CHECK(type IN ('income','expense','transfer')),
+            amount REAL NOT NULL,
+            accountId TEXT NOT NULL,
+            toAccountId TEXT NOT NULL DEFAULT '',
+            categoryId TEXT NOT NULL,
+            paymentMediumId TEXT NOT NULL DEFAULT '',
+            reason TEXT NOT NULL,
+            notes TEXT NOT NULL,
+            date TEXT NOT NULL,
+            createdAt INTEGER NOT NULL
+          );
+        `);
+        try { database.run(`ALTER TABLE transactions ADD COLUMN paymentMediumId TEXT NOT NULL DEFAULT ''`); } catch {}
+        try { database.run(`ALTER TABLE transactions ADD COLUMN toAccountId TEXT NOT NULL DEFAULT ''`); } catch {}
+        database.run(`
+          INSERT INTO transactions_new (id, type, amount, accountId, toAccountId, categoryId, paymentMediumId, reason, notes, date, createdAt)
+          SELECT id, type, amount, accountId, toAccountId, categoryId, paymentMediumId, reason, notes, date, createdAt FROM transactions;
+        `);
+        database.run(`DROP TABLE transactions;`);
+        database.run(`ALTER TABLE transactions_new RENAME TO transactions;`);
+      }
+    }
+  } catch (e) { console.error("Migration error", e); }
+
   database.run(`
     CREATE TABLE IF NOT EXISTS transactions (
       id TEXT PRIMARY KEY,
-      type TEXT NOT NULL CHECK(type IN ('income','expense')),
+      type TEXT NOT NULL CHECK(type IN ('income','expense','transfer')),
       amount REAL NOT NULL,
       accountId TEXT NOT NULL,
+      toAccountId TEXT NOT NULL DEFAULT '',
       categoryId TEXT NOT NULL,
       reason TEXT NOT NULL,
       notes TEXT NOT NULL,
@@ -158,6 +195,8 @@ function ensureSchema(database: any) {
   `);
   // migrate: add paymentMediumId column if missing
   try { database.run(`ALTER TABLE transactions ADD COLUMN paymentMediumId TEXT NOT NULL DEFAULT ''`); } catch {}
+  // migrate: add toAccountId column if missing
+  try { database.run(`ALTER TABLE transactions ADD COLUMN toAccountId TEXT NOT NULL DEFAULT ''`); } catch {}
 
   // --- payment mediums ---
   database.run(`
@@ -429,6 +468,8 @@ export interface MainAccount {
   openingBalance: number;
   description: string;
   accountNumber: string;
+  allowNegativeBalance: boolean;
+  isClosed: boolean;
   date: string; // ISO YYYY-MM-DD
   createdAt: number;
 }
@@ -438,10 +479,12 @@ export type ComputedAccount = MainAccount & { currentBalance: number };
 export async function dbGetAccounts(): Promise<ComputedAccount[]> {
   const d = await getDB();
   const res = d.exec(`
-    SELECT a.id, a.name, a.nameKey, a.openingBalance, a.description, a.accountNumber, a.date, a.createdAt,
+    SELECT a.id, a.name, a.nameKey, a.openingBalance, a.description, a.accountNumber, a.allowNegativeBalance, a.isClosed, a.date, a.createdAt,
       (a.openingBalance + 
        COALESCE((SELECT SUM(amount) FROM transactions WHERE accountId = a.id AND type = 'income'), 0) - 
-       COALESCE((SELECT SUM(amount) FROM transactions WHERE accountId = a.id AND type = 'expense'), 0)
+       COALESCE((SELECT SUM(amount) FROM transactions WHERE accountId = a.id AND type = 'expense'), 0) -
+       COALESCE((SELECT SUM(amount) FROM transactions WHERE accountId = a.id AND type = 'transfer'), 0) +
+       COALESCE((SELECT SUM(amount) FROM transactions WHERE toAccountId = a.id AND type = 'transfer'), 0)
       ) as currentBalance
     FROM accounts a ORDER BY a.createdAt DESC
   `);
@@ -450,12 +493,15 @@ export async function dbGetAccounts(): Promise<ComputedAccount[]> {
   const vals = res[0].values as any[][];
   return vals.map((row) => {
     const o: any = {};
-    cols.forEach((c, i) => (o[c] = row[i]));
+    cols.forEach((c, i) => {
+      if (c === "allowNegativeBalance" || c === "isClosed") o[c] = Boolean(row[i]);
+      else o[c] = row[i];
+    });
     return o as ComputedAccount;
   });
 }
 
-export async function dbAddAccount(a: Omit<MainAccount, "id" | "nameKey" | "createdAt">): Promise<{ ok: boolean; error?: string; account?: MainAccount }> {
+export async function dbAddAccount(a: Omit<MainAccount, "id" | "nameKey" | "createdAt" | "isClosed">): Promise<{ ok: boolean; error?: string; account?: MainAccount }> {
   const rawName = a.name.trim();
   if (!rawName) return { ok: false, error: "Account name is required" };
   if (!Number.isFinite(a.openingBalance)) return { ok: false, error: "Opening balance must be a number" };
@@ -474,17 +520,21 @@ export async function dbAddAccount(a: Omit<MainAccount, "id" | "nameKey" | "crea
     openingBalance: Number(a.openingBalance),
     description,
     accountNumber: (a.accountNumber ?? "").trim(),
+    allowNegativeBalance: !!a.allowNegativeBalance,
+    isClosed: false,
     date: a.date,
     createdAt: Date.now(),
   };
   try {
-    d.run("INSERT INTO accounts (id, name, nameKey, openingBalance, description, accountNumber, date, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [
+    d.run("INSERT INTO accounts (id, name, nameKey, openingBalance, description, accountNumber, allowNegativeBalance, isClosed, date, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
       acc.id,
       acc.name,
       acc.nameKey,
       acc.openingBalance,
       acc.description,
       acc.accountNumber,
+      acc.allowNegativeBalance ? 1 : 0,
+      0,
       acc.date,
       acc.createdAt,
     ]);
@@ -497,13 +547,31 @@ export async function dbAddAccount(a: Omit<MainAccount, "id" | "nameKey" | "crea
   }
 }
 
-export async function dbDeleteAccount(id: string): Promise<void> {
+export async function dbDeleteAccount(id: string): Promise<{ ok: boolean; error?: string; softDeleted?: boolean }> {
   const d = await getDB();
-  d.run("DELETE FROM accounts WHERE id = ?", [id]);
-  await saveDB();
+  const accounts = await dbGetAccounts();
+  const acc = accounts.find((a) => a.id === id);
+  if (!acc) return { ok: false, error: "Account not found" };
+
+  if (Math.abs(acc.currentBalance) > 0.01) {
+    return { ok: false, error: "You must transfer the remaining balance to another account before closing this one." };
+  }
+
+  const txns = await dbGetTransactions();
+  const hasTransactions = txns.some((t) => t.accountId === id || t.toAccountId === id);
+
+  if (hasTransactions) {
+    d.run("UPDATE accounts SET isClosed = 1 WHERE id = ?", [id]);
+    await saveDB();
+    return { ok: true, softDeleted: true };
+  } else {
+    d.run("DELETE FROM accounts WHERE id = ?", [id]);
+    await saveDB();
+    return { ok: true, softDeleted: false };
+  }
 }
 
-export async function dbUpdateAccount(id: string, a: Omit<MainAccount, "id" | "nameKey" | "createdAt">): Promise<{ ok: boolean; error?: string; account?: MainAccount }> {
+export async function dbUpdateAccount(id: string, a: Omit<MainAccount, "id" | "nameKey" | "createdAt" | "isClosed">): Promise<{ ok: boolean; error?: string; account?: MainAccount }> {
   const rawName = a.name.trim();
   if (!rawName) return { ok: false, error: "Account name is required" };
   if (!Number.isFinite(a.openingBalance)) return { ok: false, error: "Opening balance must be a number" };
@@ -518,11 +586,11 @@ export async function dbUpdateAccount(id: string, a: Omit<MainAccount, "id" | "n
   if (dup.length && dup[0].values.length) return { ok: false, error: `Account "${rawName}" already exists` };
 
   try {
-    d.run("UPDATE accounts SET name = ?, nameKey = ?, openingBalance = ?, description = ?, accountNumber = ?, date = ? WHERE id = ?", [
-      name, key, a.openingBalance, description, (a.accountNumber ?? "").trim(), a.date, id
+    d.run("UPDATE accounts SET name = ?, nameKey = ?, openingBalance = ?, description = ?, accountNumber = ?, allowNegativeBalance = ?, date = ? WHERE id = ?", [
+      name, key, a.openingBalance, description, (a.accountNumber ?? "").trim(), a.allowNegativeBalance ? 1 : 0, a.date, id
     ]);
     await saveDB();
-    return { ok: true, account: { id, name, nameKey: key, openingBalance: a.openingBalance, description, accountNumber: (a.accountNumber ?? "").trim(), date: a.date, createdAt: 0 } };
+    return { ok: true, account: { id, name, nameKey: key, openingBalance: a.openingBalance, description, accountNumber: (a.accountNumber ?? "").trim(), allowNegativeBalance: !!a.allowNegativeBalance, isClosed: false, date: a.date, createdAt: 0 } };
   } catch (e: any) {
     const msg = e?.message ?? String(e);
     return { ok: false, error: msg };
@@ -636,12 +704,13 @@ export async function dbDeletePaymentMedium(id: string): Promise<{ ok: boolean; 
   }
 }
 
-// ---------- Transactions helpers ----------
+export type TransactionType = "income" | "expense" | "transfer";
 export interface Transaction {
   id: string;
-  type: CategoryType; // "income" or "expense"
+  type: TransactionType;
   amount: number;
   accountId: string;
+  toAccountId: string;
   categoryId: string;
   paymentMediumId: string;
   reason: string;
@@ -652,7 +721,7 @@ export interface Transaction {
 
 export async function dbGetTransactions(): Promise<Transaction[]> {
   const d = await getDB();
-  const res = d.exec("SELECT id, type, amount, accountId, categoryId, paymentMediumId, reason, notes, date, createdAt FROM transactions ORDER BY date DESC, createdAt DESC");
+  const res = d.exec("SELECT id, type, amount, accountId, toAccountId, categoryId, paymentMediumId, reason, notes, date, createdAt FROM transactions ORDER BY date DESC, createdAt DESC");
   if (!res.length) return [];
   const cols = res[0].columns as string[];
   const vals = res[0].values as any[][];
@@ -666,16 +735,29 @@ export async function dbGetTransactions(): Promise<Transaction[]> {
 export async function dbAddTransaction(t: Omit<Transaction, "id" | "createdAt">): Promise<{ ok: boolean; error?: string; transaction?: Transaction }> {
   if (!Number.isFinite(t.amount) || t.amount <= 0) return { ok: false, error: "Amount must be a positive number" };
   if (!t.accountId) return { ok: false, error: "Account is required" };
-  if (!t.categoryId) return { ok: false, error: "Category is required" };
+  if (t.type === "transfer" && !t.toAccountId) return { ok: false, error: "Destination Account is required for transfers" };
+  if (t.type === "transfer" && t.accountId === t.toAccountId) return { ok: false, error: "Cannot transfer to the same account" };
+  if (t.type !== "transfer" && !t.categoryId) return { ok: false, error: "Category is required" };
   if (!t.reason.trim()) return { ok: false, error: "Reason is required" };
   if (!t.date || !/^\d{4}-\d{2}-\d{2}$/.test(t.date)) return { ok: false, error: "Date is required (YYYY-MM-DD)" };
+
+  if (t.type === "expense" || t.type === "transfer") {
+    const accounts = await dbGetAccounts();
+    const srcAcc = accounts.find(a => a.id === t.accountId);
+    if (srcAcc && !srcAcc.allowNegativeBalance) {
+      if (srcAcc.currentBalance - t.amount < 0) {
+        return { ok: false, error: "Insufficient balance (negative balance not allowed for this account)" };
+      }
+    }
+  }
 
   const trans: Transaction = {
     id: `txn_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
     type: t.type,
     amount: Number(t.amount),
     accountId: t.accountId,
-    categoryId: t.categoryId,
+    toAccountId: t.type === "transfer" ? t.toAccountId : "",
+    categoryId: t.type === "transfer" ? "" : t.categoryId,
     paymentMediumId: t.paymentMediumId ?? "",
     reason: t.reason.trim().slice(0, 50),
     notes: t.notes.trim().slice(0, 1000),
@@ -685,8 +767,8 @@ export async function dbAddTransaction(t: Omit<Transaction, "id" | "createdAt">)
 
   const d = await getDB();
   try {
-    d.run("INSERT INTO transactions (id, type, amount, accountId, categoryId, paymentMediumId, reason, notes, date, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
-      trans.id, trans.type, trans.amount, trans.accountId, trans.categoryId, trans.paymentMediumId, trans.reason, trans.notes, trans.date, trans.createdAt
+    d.run("INSERT INTO transactions (id, type, amount, accountId, toAccountId, categoryId, paymentMediumId, reason, notes, date, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+      trans.id, trans.type, trans.amount, trans.accountId, trans.toAccountId, trans.categoryId, trans.paymentMediumId, trans.reason, trans.notes, trans.date, trans.createdAt
     ]);
     await saveDB();
     return { ok: true, transaction: trans };
@@ -704,17 +786,42 @@ export async function dbDeleteTransaction(id: string): Promise<void> {
 export async function dbUpdateTransaction(id: string, t: Omit<Transaction, "id" | "createdAt">): Promise<{ ok: boolean; error?: string; transaction?: Transaction }> {
   if (!Number.isFinite(t.amount) || t.amount <= 0) return { ok: false, error: "Amount must be a positive number" };
   if (!t.accountId) return { ok: false, error: "Account is required" };
-  if (!t.categoryId) return { ok: false, error: "Category is required" };
+  if (t.type === "transfer" && !t.toAccountId) return { ok: false, error: "Destination Account is required for transfers" };
+  if (t.type === "transfer" && t.accountId === t.toAccountId) return { ok: false, error: "Cannot transfer to the same account" };
+  if (t.type !== "transfer" && !t.categoryId) return { ok: false, error: "Category is required" };
   if (!t.reason.trim()) return { ok: false, error: "Reason is required" };
   if (!t.date || !/^\d{4}-\d{2}-\d{2}$/.test(t.date)) return { ok: false, error: "Date is required (YYYY-MM-DD)" };
 
+  if (t.type === "expense" || t.type === "transfer") {
+    const allTxns = await dbGetTransactions();
+    const oldT = allTxns.find(tx => tx.id === id);
+    if (oldT) {
+      const accounts = await dbGetAccounts();
+      const srcAcc = accounts.find(a => a.id === t.accountId);
+      if (srcAcc && !srcAcc.allowNegativeBalance) {
+        let virtualBal = srcAcc.currentBalance;
+        if (oldT.accountId === srcAcc.id && (oldT.type === "expense" || oldT.type === "transfer")) {
+          virtualBal += oldT.amount;
+        } else if (oldT.accountId === srcAcc.id && oldT.type === "income") {
+          virtualBal -= oldT.amount;
+        } else if (oldT.toAccountId === srcAcc.id && oldT.type === "transfer") {
+          virtualBal -= oldT.amount;
+        }
+        
+        if (virtualBal - t.amount < 0) {
+          return { ok: false, error: "Insufficient balance (negative balance not allowed for this account)" };
+        }
+      }
+    }
+  }
+
   const d = await getDB();
   try {
-    d.run("UPDATE transactions SET type = ?, amount = ?, accountId = ?, categoryId = ?, paymentMediumId = ?, reason = ?, notes = ?, date = ? WHERE id = ?", [
-      t.type, t.amount, t.accountId, t.categoryId, t.paymentMediumId ?? "", t.reason.trim().slice(0, 50), t.notes.trim().slice(0, 1000), t.date, id
+    d.run("UPDATE transactions SET type = ?, amount = ?, accountId = ?, toAccountId = ?, categoryId = ?, paymentMediumId = ?, reason = ?, notes = ?, date = ? WHERE id = ?", [
+      t.type, t.amount, t.accountId, t.type === "transfer" ? t.toAccountId : "", t.type === "transfer" ? "" : t.categoryId, t.paymentMediumId ?? "", t.reason.trim().slice(0, 50), t.notes.trim().slice(0, 1000), t.date, id
     ]);
     await saveDB();
-    return { ok: true, transaction: { id, type: t.type, amount: t.amount, accountId: t.accountId, categoryId: t.categoryId, paymentMediumId: t.paymentMediumId ?? "", reason: t.reason.trim().slice(0, 50), notes: t.notes.trim().slice(0, 1000), date: t.date, createdAt: 0 } };
+    return { ok: true, transaction: { id, type: t.type, amount: t.amount, accountId: t.accountId, toAccountId: t.type === "transfer" ? t.toAccountId : "", categoryId: t.type === "transfer" ? "" : t.categoryId, paymentMediumId: t.paymentMediumId ?? "", reason: t.reason.trim().slice(0, 50), notes: t.notes.trim().slice(0, 1000), date: t.date, createdAt: 0 } };
   } catch (e: any) {
     return { ok: false, error: e?.message ?? String(e) };
   }

@@ -70,23 +70,37 @@ export function StatementPage() {
     ...accounts.map(a => ({ value: a.id, label: displayName(a.name) })),
   ], [accounts]);
 
+  const expandedTxns = useMemo(() => {
+    const expanded: (Transaction & { _side: 'debit' | 'credit' | 'normal', _virtualAccountId: string })[] = [];
+    for (const t of txns) {
+      if (t.type === 'transfer') {
+        expanded.push({ ...t, _side: 'debit', _virtualAccountId: t.accountId });
+        expanded.push({ ...t, _side: 'credit', _virtualAccountId: t.toAccountId });
+      } else {
+        expanded.push({ ...t, _side: 'normal', _virtualAccountId: t.accountId });
+      }
+    }
+    return expanded;
+  }, [txns]);
+
   // Compute rows with running balance per account
   const rows: StatementRow[] = useMemo(() => {
-    const filtered = txns
+    const filtered = expandedTxns
       .filter(t => {
         if (t.date < range.start || t.date > range.end) return false;
-        if (selectedAccount !== "all" && t.accountId !== selectedAccount) return false;
+        if (selectedAccount !== "all" && t._virtualAccountId !== selectedAccount) return false;
         return true;
       })
-      .sort((a, b) => a.date.localeCompare(b.date) || a.createdAt - b.createdAt);
+      .sort((a, b) => a.date.localeCompare(b.date) || a.createdAt - b.createdAt || (a._side === 'debit' ? -1 : 1));
 
     // Compute opening balance per account at period start
     const openingBalances = new Map<string, number>();
     for (const a of accounts) {
       let bal = a.openingBalance;
-      for (const t of txns) {
-        if (t.accountId === a.id && t.date < range.start) {
-          bal += t.type === "income" ? t.amount : -t.amount;
+      for (const t of expandedTxns) {
+        if (t._virtualAccountId === a.id && t.date < range.start) {
+          const isIncome = t._side === 'credit' || (t._side === 'normal' && t.type === 'income');
+          bal += isIncome ? t.amount : -t.amount;
         }
       }
       openingBalances.set(a.id, bal);
@@ -99,26 +113,29 @@ export function StatementPage() {
     }
 
     return filtered.map(t => {
-      const prev = running.get(t.accountId) ?? 0;
-      const after = prev + (t.type === "income" ? t.amount : -t.amount);
-      running.set(t.accountId, after);
+      const prev = running.get(t._virtualAccountId) ?? 0;
+      const isIncome = t._side === 'credit' || (t._side === 'normal' && t.type === 'income');
+      const after = prev + (isIncome ? t.amount : -t.amount);
+      running.set(t._virtualAccountId, after);
 
       const cat = categoryMap.get(t.categoryId);
-      const acc = accountMap.get(t.accountId);
+      const acc = accountMap.get(t._virtualAccountId);
       const med = paymentMediumMap.get(t.paymentMediumId);
+
+      const categoryName = t.type === 'transfer' ? 'Self Transfer' : displayName(cat?.name ?? "Unknown");
 
       return {
         date: t.date,
-        category: displayName(cat?.name ?? "Unknown"),
+        category: categoryName,
         notes: t.reason,
         paymentMode: med ? `${med.group === "online" ? "Online" : "Offline"} · ${displayName(med.name)}` : "",
         account: displayName(acc?.name ?? "Unknown"),
-        credit: t.type === "income" ? t.amount : 0,
-        debit: t.type === "expense" ? t.amount : 0,
+        credit: isIncome ? t.amount : 0,
+        debit: !isIncome ? t.amount : 0,
         remaining: after,
       };
     });
-  }, [txns, accounts, range, categoryMap, accountMap, paymentMediumMap, selectedAccount]);
+  }, [expandedTxns, accounts, range, categoryMap, accountMap, paymentMediumMap, selectedAccount]);
 
   const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const pageRows = rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);

@@ -7,7 +7,7 @@ import { Input, Textarea } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { DataTable, ColumnDef } from "@/components/ui/DataTable";
-import { Transaction, dbGetTransactions, dbAddTransaction, dbUpdateTransaction, dbDeleteTransaction, ComputedAccount, dbGetAccounts, Category, dbGetCategories, CategoryType, PaymentMedium, PaymentMediumGroup, dbGetPaymentMediums } from "@/lib/db";
+import { Transaction, TransactionType, dbGetTransactions, dbAddTransaction, dbUpdateTransaction, dbDeleteTransaction, ComputedAccount, dbGetAccounts, Category, dbGetCategories, CategoryType, PaymentMedium, PaymentMediumGroup, dbGetPaymentMediums } from "@/lib/db";
 import { displayName } from "@/lib/stringUtils";
 
 function todayISO() {
@@ -26,15 +26,22 @@ export function TransactionsPage() {
   const [loading, setLoading] = useState(true);
   
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [deleteTransactionState, setDeleteTransactionState] = useState<Transaction | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleteCaptchaInput, setDeleteCaptchaInput] = useState("");
+  const [deleteCaptcha, setDeleteCaptcha] = useState("");
+  const [settlementAccountId, setSettlementAccountId] = useState("");
+  const [viewTxn, setViewTxn] = useState<Transaction | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
   const [formErr, setFormErr] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [query, setQuery] = useState("");
 
   // Form State
-  const [type, setType] = useState<CategoryType>("expense");
+  const [type, setType] = useState<TransactionType>("expense");
   const [amount, setAmount] = useState("");
   const [accountId, setAccountId] = useState("");
+  const [toAccountId, setToAccountId] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [paymentGroup, setPaymentGroup] = useState<PaymentMediumGroup>("online");
   const [paymentMediumId, setPaymentMediumId] = useState("");
@@ -73,6 +80,7 @@ export function TransactionsPage() {
     setType("expense");
     setAmount("");
     setAccountId(accounts.length > 0 ? accounts[0].id : "");
+    setToAccountId(accounts.length > 0 ? accounts[0].id : "");
     setCategoryId("");
     setPaymentGroup("online");
     setPaymentMediumId("");
@@ -88,6 +96,7 @@ export function TransactionsPage() {
     setType(t.type);
     setAmount(String(t.amount));
     setAccountId(t.accountId);
+    setToAccountId(t.toAccountId ?? "");
     setCategoryId(t.categoryId);
     // derive group from the medium
     const med = paymentMediums.find(m => m.id === t.paymentMediumId);
@@ -106,7 +115,8 @@ export function TransactionsPage() {
       type,
       amount: Number(amount),
       accountId,
-      categoryId,
+      toAccountId: type === "transfer" ? toAccountId : "",
+      categoryId: type === "transfer" ? "" : categoryId,
       paymentMediumId,
       reason,
       notes,
@@ -125,11 +135,78 @@ export function TransactionsPage() {
     await refresh();
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this transaction?")) return;
-    await dbDeleteTransaction(id);
+  const openDeleteDialog = (t: Transaction) => {
+    setDeleteTransactionState(t);
+    setDeleteConfirmText("");
+    setDeleteCaptchaInput("");
+    setDeleteCaptcha(Math.random().toString(36).substring(2, 8).toUpperCase());
+    
+    const acc = accounts.find(a => a.id === t.accountId);
+    if (acc?.isClosed) {
+      const active = accounts.filter(a => !a.isClosed);
+      setSettlementAccountId(active.length > 0 ? active[0].id : "");
+    } else {
+      setSettlementAccountId("");
+    }
+  };
+
+  const executeDelete = async () => {
+    if (!deleteTransactionState) return;
+    if (deleteConfirmText.toLowerCase() !== "confirm") {
+      alert("Please type 'confirm' to proceed.");
+      return;
+    }
+    if (deleteCaptchaInput !== deleteCaptcha) {
+      alert("CAPTCHA does not match.");
+      return;
+    }
+
+    const t = deleteTransactionState;
+    const acc = accounts.find(a => a.id === t.accountId);
+    const toAcc = accounts.find(a => a.id === t.toAccountId);
+
+    if (t.type === "transfer" && (acc?.isClosed || toAcc?.isClosed)) {
+      alert("Transfers involving closed accounts cannot be deleted directly right now.");
+      return;
+    }
+
+    if (acc?.isClosed) {
+      if (!settlementAccountId) {
+        alert("Please select a settlement account.");
+        return;
+      }
+      
+      // Delete first so balance allows the transfer out if needed
+      await dbDeleteTransaction(t.id);
+      
+      let settleFrom = "";
+      let settleTo = "";
+      if (t.type === "expense") {
+        settleFrom = t.accountId;
+        settleTo = settlementAccountId;
+      } else if (t.type === "income") {
+        settleFrom = settlementAccountId;
+        settleTo = t.accountId;
+      }
+      
+      await dbAddTransaction({
+        type: "transfer",
+        amount: t.amount,
+        accountId: settleFrom,
+        toAccountId: settleTo,
+        categoryId: "",
+        paymentMediumId: t.paymentMediumId,
+        reason: `Settlement for deleted transaction`,
+        notes: `Reversed transaction: ${t.reason}`,
+        date: todayISO(),
+      });
+    } else {
+      await dbDeleteTransaction(t.id);
+    }
+
     await refresh();
     showToast("Transaction deleted");
+    setDeleteTransactionState(null);
   };
 
   const filteredCategories = useMemo(() => categories.filter(c => c.type === type), [categories, type]);
@@ -174,12 +251,12 @@ export function TransactionsPage() {
         const c = categoryMap.get(t.categoryId);
         return (
           <div className="flex items-center gap-3">
-            <span className="w-8 h-8 rounded-full border border-white/10 shrink-0 flex items-center justify-center text-[10px] font-bold" style={{ background: c ? c.color : "var(--color-surface-elevated-dark)", color: "black" }}>
-              {c ? c.name.slice(0, 2).toUpperCase() : "?"}
+            <span className="w-8 h-8 rounded-full border border-white/10 shrink-0 flex items-center justify-center text-[10px] font-bold" style={{ background: t.type === 'transfer' ? "var(--color-primary)" : (c ? c.color : "var(--color-surface-elevated-dark)"), color: "black" }}>
+              {t.type === 'transfer' ? "TR" : (c ? c.name.slice(0, 2).toUpperCase() : "?")}
             </span>
             <div className="min-w-0">
               <div className="text-[13px] font-semibold text-white truncate">{t.reason}</div>
-              <div className="text-[11px] text-[var(--color-muted)] truncate">{c ? displayName(c.name) : "Unknown Category"}</div>
+              <div className="text-[11px] text-[var(--color-muted)] truncate">{t.type === 'transfer' ? "Transfer" : (c ? displayName(c.name) : "Unknown Category")}</div>
             </div>
           </div>
         );
@@ -190,8 +267,8 @@ export function TransactionsPage() {
       accessorKey: "amount",
       className: "w-[20%] min-w-[120px]",
       cell: (t) => (
-        <div className={`text-[13px] font-bold font-num ${t.type === "income" ? "text-[var(--color-trading-up)]" : "text-[var(--color-trading-down)]"}`}>
-          {t.type === "income" ? "+" : "-"}₹{t.amount.toLocaleString("en-IN")}
+        <div className={`text-[13px] font-bold font-num ${t.type === 'transfer' ? "text-white" : t.type === "income" ? "text-[var(--color-trading-up)]" : "text-[var(--color-trading-down)]"}`}>
+          {t.type === "income" ? "+" : t.type === "expense" ? "-" : ""}₹{t.amount.toLocaleString("en-IN")}
         </div>
       ),
     },
@@ -201,6 +278,10 @@ export function TransactionsPage() {
       className: "w-[15%] min-w-[100px]",
       cell: (t) => {
         const a = accountMap.get(t.accountId);
+        if (t.type === 'transfer') {
+           const toA = accountMap.get(t.toAccountId);
+           return <span className="text-[12px] text-[var(--color-muted-strong)]">{a ? displayName(a.name) : "?"} → {toA ? displayName(toA.name) : "?"}</span>;
+        }
         return <span className="text-[12px] text-[var(--color-muted-strong)]">{a ? displayName(a.name) : "Unknown"}</span>;
       }
     },
@@ -234,7 +315,7 @@ export function TransactionsPage() {
           <button onClick={(e) => { e.stopPropagation(); openEdit(t); }} className="w-7 h-7 rounded-[6px] bg-transparent border border-transparent hover:bg-[#fcd535]/10 hover:border-[#fcd535]/20 text-[var(--color-muted)] hover:text-[#fcd535] flex items-center justify-center transition shrink-0" aria-label="Edit">
             <Pencil size={14} />
           </button>
-          <button onClick={(e) => { e.stopPropagation(); handleDelete(t.id); }} className="w-7 h-7 rounded-[6px] bg-transparent border border-transparent hover:bg-[var(--color-trading-down)]/10 hover:border-[var(--color-trading-down)]/20 text-[var(--color-muted)] hover:text-[var(--color-trading-down)] flex items-center justify-center transition shrink-0" aria-label="Delete">
+          <button onClick={(e) => { e.stopPropagation(); openDeleteDialog(t); }} className="w-7 h-7 rounded-[6px] bg-transparent border border-transparent hover:bg-[var(--color-trading-down)]/10 hover:border-[var(--color-trading-down)]/20 text-[var(--color-muted)] hover:text-[var(--color-trading-down)] flex items-center justify-center transition shrink-0" aria-label="Delete">
             <Trash2 size={14} />
           </button>
         </div>
@@ -325,7 +406,7 @@ export function TransactionsPage() {
             <div className="h-full">
               {/* Desktop Table */}
               <div className="hidden md:block h-full">
-                <DataTable columns={columns} data={filteredTxns} keyExtractor={(t) => t.id} />
+                <DataTable columns={columns} data={filteredTxns} keyExtractor={(t) => t.id} onRowClick={setViewTxn} />
               </div>
 
               {/* Mobile Cards */}
@@ -338,12 +419,12 @@ export function TransactionsPage() {
                   const avatarText = c ? c.name.slice(0, 2).toUpperCase() : "?";
 
                   return (
-                    <div key={t.id} className="bg-[var(--color-surface-card-dark)] p-4 rounded-lg shadow-md w-full font-sans border border-[var(--color-hairline-on-dark)]">
+                    <div key={t.id} onClick={() => setViewTxn(t)} className="cursor-pointer bg-[var(--color-surface-card-dark)] p-4 rounded-lg shadow-md w-full font-sans border border-[var(--color-hairline-on-dark)]">
                       {/* Top Row: Avatar, Title/Type, Amount */}
                       <div className="flex justify-between items-start mb-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full flex items-center justify-center text-[var(--color-canvas-dark)] font-bold text-sm shrink-0" style={{ background: c ? c.color : "var(--color-surface-elevated-dark)" }}>
-                            {avatarText}
+                          <div className="w-10 h-10 rounded-full flex items-center justify-center text-[var(--color-canvas-dark)] font-bold text-sm shrink-0" style={{ background: t.type === 'transfer' ? "var(--color-primary)" : (c ? c.color : "var(--color-surface-elevated-dark)") }}>
+                            {t.type === 'transfer' ? 'TR' : avatarText}
                           </div>
                           <div className="flex flex-col">
                             <h3 className="text-white font-semibold text-[14px] leading-tight max-w-[160px] truncate">
@@ -356,15 +437,15 @@ export function TransactionsPage() {
                         </div>
                         
                         <div className="text-right shrink-0 ml-2">
-                          <span className={`font-num font-bold text-[14px] ${isNegative ? 'text-[var(--color-trading-down)]' : 'text-[var(--color-trading-up)]'}`}>
-                            {isNegative ? '-' : '+'}₹{Math.abs(t.amount).toLocaleString('en-IN')}
+                          <span className={`font-num font-bold text-[14px] ${t.type === 'transfer' ? 'text-white' : isNegative ? 'text-[var(--color-trading-down)]' : 'text-[var(--color-trading-up)]'}`}>
+                            {t.type === 'transfer' ? '' : isNegative ? '-' : '+'}₹{Math.abs(t.amount).toLocaleString('en-IN')}
                           </span>
                         </div>
                       </div>
 
                       {/* Middle Row: Bank and Date */}
                       <div className="flex justify-between items-center text-[11px] text-[var(--color-muted-strong)] mb-4 bg-[var(--color-surface-elevated-dark)] px-3 py-2 rounded-[6px]">
-                         <span className="truncate max-w-[150px]">{a ? displayName(a.name) : "Unknown Account"}</span>
+                         <span className="truncate max-w-[150px]">{t.type === 'transfer' ? `${a ? displayName(a.name) : "?"} → ${accountMap.get(t.toAccountId) ? displayName(accountMap.get(t.toAccountId)!.name) : "?"}` : (a ? displayName(a.name) : "Unknown Account")}</span>
                          <span className="font-num shrink-0">{t.date}</span>
                       </div>
 
@@ -372,14 +453,14 @@ export function TransactionsPage() {
                       <div className="flex justify-between items-center mt-2 border-t border-[var(--color-hairline-on-dark)] pt-3">
                         <div className="flex flex-col min-w-0 mr-4">
                           <span className="text-white font-medium text-[12px] uppercase tracking-wide">{m ? m.group : "—"}</span>
-                          <span className="text-[var(--color-muted)] text-[11px] truncate">{m ? displayName(m.name) : "—"} • {c ? displayName(c.name) : "—"}</span>
+                          <span className="text-[var(--color-muted)] text-[11px] truncate">{m ? displayName(m.name) : "—"} • {t.type === 'transfer' ? "Transfer" : (c ? displayName(c.name) : "—")}</span>
                         </div>
                         
                         <div className="flex gap-1 text-[var(--color-muted)] shrink-0">
-                          <button onClick={() => openEdit(t)} className="w-8 h-8 rounded-[6px] hover:text-[#fcd535] hover:bg-[#fcd535]/10 flex items-center justify-center transition-colors" aria-label="Edit">
+                          <button onClick={(e) => { e.stopPropagation(); openEdit(t); }} className="w-8 h-8 rounded-[6px] hover:text-[#fcd535] hover:bg-[#fcd535]/10 flex items-center justify-center transition-colors" aria-label="Edit">
                             <Pencil size={14} />
                           </button>
-                          <button onClick={() => handleDelete(t.id)} className="w-8 h-8 rounded-[6px] hover:text-[var(--color-trading-down)] hover:bg-[var(--color-trading-down)]/10 flex items-center justify-center transition-colors" aria-label="Delete">
+                          <button onClick={(e) => { e.stopPropagation(); openDeleteDialog(t); }} className="w-8 h-8 rounded-[6px] hover:text-[var(--color-trading-down)] hover:bg-[var(--color-trading-down)]/10 flex items-center justify-center transition-colors" aria-label="Delete">
                             <Trash2 size={14} />
                           </button>
                         </div>
@@ -398,6 +479,7 @@ export function TransactionsPage() {
           <div className="flex items-center p-1 rounded-[8px] bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)]">
             <button onClick={() => setType("expense")} className={`flex-1 py-1.5 text-[12px] font-bold rounded-[6px] transition ${type === "expense" ? "bg-[var(--color-trading-down)]/20 text-[var(--color-trading-down)] shadow-sm" : "text-[var(--color-muted)] hover:text-white"}`}>Expense</button>
             <button onClick={() => setType("income")} className={`flex-1 py-1.5 text-[12px] font-bold rounded-[6px] transition ${type === "income" ? "bg-[var(--color-trading-up)]/20 text-[var(--color-trading-up)] shadow-sm" : "text-[var(--color-muted)] hover:text-white"}`}>Income</button>
+            <button onClick={() => setType("transfer")} className={`flex-1 py-1.5 text-[12px] font-bold rounded-[6px] transition ${type === "transfer" ? "bg-[var(--color-primary)]/20 text-[var(--color-primary)] shadow-sm" : "text-[var(--color-muted)] hover:text-white"}`}>Transfer</button>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -407,23 +489,35 @@ export function TransactionsPage() {
 
           <div className="grid grid-cols-2 gap-3">
             <label className="flex flex-col gap-1.5">
-              <span className="text-[11px] font-bold tracking-wide text-[var(--color-muted)] uppercase">Account</span>
+              <span className="text-[11px] font-bold tracking-wide text-[var(--color-muted)] uppercase">{type === 'transfer' ? 'From Account' : 'Account'}</span>
               <Select 
                 value={accountId} 
                 onChange={setAccountId} 
-                options={accounts.map(a => ({ value: a.id, label: displayName(a.name) }))} 
+                options={accounts.filter(a => !a.isClosed || a.id === accountId).map(a => ({ value: a.id, label: displayName(a.name) + (a.isClosed ? ' (Closed)' : '') }))} 
                 ariaLabel="Select Account" 
               />
             </label>
-            <label className="flex flex-col gap-1.5">
-              <span className="text-[11px] font-bold tracking-wide text-[var(--color-muted)] uppercase">Category</span>
-              <Select 
-                value={categoryId} 
-                onChange={setCategoryId} 
-                options={filteredCategories.map(c => ({ value: c.id, label: displayName(c.name) }))} 
-                ariaLabel="Select Category" 
-              />
-            </label>
+            {type === 'transfer' ? (
+              <label className="flex flex-col gap-1.5">
+                <span className="text-[11px] font-bold tracking-wide text-[var(--color-muted)] uppercase">To Account</span>
+                <Select 
+                  value={toAccountId} 
+                  onChange={setToAccountId} 
+                  options={accounts.filter(a => !a.isClosed || a.id === toAccountId).map(a => ({ value: a.id, label: displayName(a.name) + (a.isClosed ? ' (Closed)' : '') }))} 
+                  ariaLabel="Select Destination Account" 
+                />
+              </label>
+            ) : (
+              <label className="flex flex-col gap-1.5">
+                <span className="text-[11px] font-bold tracking-wide text-[var(--color-muted)] uppercase">Category</span>
+                <Select 
+                  value={categoryId} 
+                  onChange={setCategoryId} 
+                  options={filteredCategories.map(c => ({ value: c.id, label: displayName(c.name) }))} 
+                  ariaLabel="Select Category" 
+                />
+              </label>
+            )}
           </div>
 
           {/* Payment Medium: two-level selector */}
@@ -452,9 +546,117 @@ export function TransactionsPage() {
           {formErr && <div className="text-[11px] font-semibold text-[var(--color-trading-down)]">{formErr}</div>}
           <div className="pt-2 flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setIsAddOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={accounts.length === 0 || categories.length === 0}>{editId ? "Save changes" : "Add Transaction"}</Button>
+            <Button onClick={handleSave} disabled={accounts.length === 0 || (type !== 'transfer' && categories.length === 0) || (type === 'transfer' && accounts.length < 2)}>{editId ? "Save changes" : "Add Transaction"}</Button>
           </div>
         </div>
+      </Dialog>
+
+      {/* View Transaction Dialog */}
+      <Dialog open={!!viewTxn} onClose={() => setViewTxn(null)} title="Transaction Details" showClose maxWidth="max-w-[400px]">
+        {viewTxn && (
+          <div className="flex flex-col gap-4">
+            <div>
+              <div className="text-[11px] font-bold tracking-wide text-[var(--color-muted)] uppercase mb-1">Reason</div>
+              <div className="text-[14px] text-white font-medium">{viewTxn.reason}</div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <div className="text-[11px] font-bold tracking-wide text-[var(--color-muted)] uppercase mb-1">Amount</div>
+                <div className={`text-[14px] font-bold font-num ${viewTxn.type === 'transfer' ? 'text-white' : viewTxn.type === 'income' ? 'text-[var(--color-trading-up)]' : 'text-[var(--color-trading-down)]'}`}>
+                  {viewTxn.type === 'transfer' ? '' : viewTxn.type === 'income' ? '+' : '-'}₹{Math.abs(viewTxn.amount).toLocaleString('en-IN')}
+                </div>
+              </div>
+              <div>
+                <div className="text-[11px] font-bold tracking-wide text-[var(--color-muted)] uppercase mb-1">Date</div>
+                <div className="text-[14px] text-white font-num">{viewTxn.date}</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <div className="text-[11px] font-bold tracking-wide text-[var(--color-muted)] uppercase mb-1">Account</div>
+                <div className="text-[13px] text-[var(--color-muted-strong)]">
+                  {viewTxn.type === 'transfer' 
+                    ? `${displayName(accountMap.get(viewTxn.accountId)?.name ?? "?")} → ${displayName(accountMap.get(viewTxn.toAccountId)?.name ?? "?")}`
+                    : displayName(accountMap.get(viewTxn.accountId)?.name ?? "Unknown")}
+                </div>
+              </div>
+              <div>
+                <div className="text-[11px] font-bold tracking-wide text-[var(--color-muted)] uppercase mb-1">Category / Type</div>
+                <div className="text-[13px] text-[var(--color-muted-strong)]">
+                  {viewTxn.type === 'transfer' ? 'Self Transfer' : displayName(categoryMap.get(viewTxn.categoryId)?.name ?? "Unknown")}
+                </div>
+              </div>
+            </div>
+
+            {viewTxn.notes && (
+              <div>
+                <div className="text-[11px] font-bold tracking-wide text-[var(--color-muted)] uppercase mb-1">Description / Notes</div>
+                <div className="text-[13px] text-[var(--color-muted-strong)] whitespace-pre-wrap leading-relaxed bg-[var(--color-surface-elevated-dark)] p-3 rounded-[8px] border border-[var(--color-hairline-on-dark)]">
+                  {viewTxn.notes}
+                </div>
+              </div>
+            )}
+            
+            <div className="pt-2 flex justify-end gap-2 border-t border-[var(--color-hairline-on-dark)] mt-2 pt-4">
+              <Button onClick={() => setViewTxn(null)}>Close</Button>
+            </div>
+          </div>
+        )}
+      </Dialog>
+
+      <Dialog open={!!deleteTransactionState} onClose={() => setDeleteTransactionState(null)} title="Delete Transaction" showClose maxWidth="max-w-[400px]">
+        {deleteTransactionState && (
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-[var(--color-muted-strong)]">
+              Are you sure you want to delete this transaction? This action cannot be undone.
+            </p>
+            {accounts.find(a => a.id === deleteTransactionState.accountId)?.isClosed && deleteTransactionState.type !== 'transfer' && (
+              <div className="bg-[#fcd535]/10 border border-[#fcd535]/20 p-3 rounded-lg flex flex-col gap-2">
+                <p className="text-[12px] text-[#fcd535]">
+                  The source account is closed. Deleting this transaction reverses its balance. Please select an active account to settle the reversed balance.
+                </p>
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-[11px] font-bold tracking-wide text-[var(--color-muted)] uppercase">Settlement Account</span>
+                  <Select 
+                    value={settlementAccountId} 
+                    onChange={setSettlementAccountId} 
+                    options={accounts.filter(a => !a.isClosed).map(a => ({ value: a.id, label: displayName(a.name) }))} 
+                    ariaLabel="Select Settlement Account" 
+                  />
+                </label>
+              </div>
+            )}
+            <Input 
+              label="Type 'confirm' to proceed" 
+              value={deleteConfirmText} 
+              onChange={(e) => setDeleteConfirmText(e.target.value)} 
+              placeholder="confirm" 
+            />
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[11px] font-bold tracking-wide text-[var(--color-muted)] uppercase">CAPTCHA Verification</span>
+              <div className="flex gap-3">
+                <div className="w-24 h-10 bg-[var(--color-surface-card-dark)] border border-[var(--color-hairline-on-dark)] rounded-[8px] flex items-center justify-center font-mono font-bold text-white tracking-widest select-none">
+                  {deleteCaptcha}
+                </div>
+                <input 
+                  type="text" 
+                  value={deleteCaptchaInput} 
+                  onChange={(e) => setDeleteCaptchaInput(e.target.value)} 
+                  className="flex-1 h-10 rounded-[8px] bg-[var(--color-canvas-dark)] border border-[var(--color-hairline-on-dark)] text-[13px] text-white px-3 font-mono focus:outline-none focus:border-[var(--color-primary)]/40 placeholder:text-[var(--color-muted)] transition"
+                  placeholder="Enter CAPTCHA"
+                />
+              </div>
+            </div>
+            <div className="pt-2 flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setDeleteTransactionState(null)}>Cancel</Button>
+              <Button onClick={executeDelete} disabled={deleteConfirmText.toLowerCase() !== "confirm" || deleteCaptchaInput !== deleteCaptcha || (accounts.find(a => a.id === deleteTransactionState.accountId)?.isClosed && deleteTransactionState.type !== 'transfer' && !settlementAccountId)} className="bg-[var(--color-trading-down)] hover:bg-[var(--color-trading-down)]/90 text-white border-transparent">
+                Delete
+              </Button>
+            </div>
+          </div>
+        )}
       </Dialog>
 
       {toast && (

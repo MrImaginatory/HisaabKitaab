@@ -16,9 +16,10 @@ interface DataTableProps<T> {
   data: T[];
   keyExtractor: (row: T) => string;
   className?: string;
+  onRowClick?: (row: T) => void;
 }
 
-export function DataTable<T>({ columns, data, keyExtractor, className = "" }: DataTableProps<T>) {
+export function DataTable<T>({ columns, data, keyExtractor, className = "", onRowClick }: DataTableProps<T>) {
   const [sortCol, setSortCol] = useState<string | null>(null);
   const [sortDesc, setSortDesc] = useState<boolean>(false);
 
@@ -87,7 +88,7 @@ export function DataTable<T>({ columns, data, keyExtractor, className = "" }: Da
         </thead>
         <tbody className="divide-y divide-[var(--color-hairline-on-dark)]">
           {sortedData.map((row) => (
-            <tr key={keyExtractor(row)} className="transition hover:bg-[var(--color-surface-elevated-dark)]/30">
+            <tr key={keyExtractor(row)} onClick={() => onRowClick?.(row)} className={`transition hover:bg-[var(--color-surface-elevated-dark)]/30 ${onRowClick ? "cursor-pointer" : ""}`}>
               {columns.map((col, i) => (
                 <td key={i} className={`px-4 py-3 align-middle ${col.className || ""}`}>
                   {col.cell ? col.cell(row) : col.accessorKey ? String((row as any)[col.accessorKey]) : null}
