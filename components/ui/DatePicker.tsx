@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { CSSProperties, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -32,6 +32,33 @@ function fmtDisplay(iso: string) {
   const d = parseISO(iso);
   if (!d) return "";
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+/** Compute a viewport-safe style for the calendar portal so it never overflows
+ *  the screen edges. On mobile this prevents the calendar from going off-screen. */
+function calcPortalStyle(rect: DOMRect): CSSProperties {
+  const CAL_W = Math.max(rect.width, 300);
+  const vw = typeof window !== "undefined" ? window.innerWidth : 1024;
+  const top = rect.bottom + 6;
+
+  // If the calendar is wider than the available viewport space, center it.
+  if (CAL_W >= vw - 16) {
+    return {
+      position: "fixed",
+      top,
+      left: "50%",
+      transform: "translateX(-50%)",
+      width: Math.min(CAL_W, vw - 16),
+      zIndex: 60,
+    };
+  }
+
+  // Otherwise anchor to the button's left edge, but clamp so the right side
+  // never escapes the viewport (8 px gutter on both edges).
+  const rawLeft = rect.left;
+  const clampedLeft = Math.min(rawLeft, vw - CAL_W - 8);
+  const safeLeft = Math.max(clampedLeft, 8);
+  return { position: "fixed", top, left: safeLeft, width: CAL_W, zIndex: 60 };
 }
 
 export function DatePicker({ label, value, onChange, placeholder = "Pick a date", min, max }: DatePickerProps) {
@@ -106,6 +133,9 @@ export function DatePicker({ label, value, onChange, placeholder = "Pick a date"
   // trim to exactly 35 if we have 6 weeks unnecessary
   const trimmed = cells.length === 42 && firstDowMon0 + daysInMonth <= 35 ? cells.slice(0, 35) : cells;
 
+  // Compute viewport-safe portal position before returning JSX
+  const portalStyle: CSSProperties = rect ? calcPortalStyle(rect) : {};
+
   return (
     <label className="flex flex-col gap-1.5">
       {label && <span className="text-[11px] font-bold tracking-wide text-[var(--color-muted)] uppercase">{label}</span>}
@@ -126,7 +156,7 @@ export function DatePicker({ label, value, onChange, placeholder = "Pick a date"
         ? createPortal(
             <div
               id="hk-datepicker-portal"
-              style={{ position: "fixed", top: rect.bottom + 6, left: rect.left, width: Math.max(rect.width, 300), zIndex: 60 }}
+              style={portalStyle}
               className="rounded-[12px] bg-[var(--color-surface-card-dark)] border border-[var(--color-hairline-on-dark)] shadow-[0_12px_32px_rgba(0,0,0,0.55)] overflow-hidden p-3"
             >
               <div className="flex items-center justify-between">

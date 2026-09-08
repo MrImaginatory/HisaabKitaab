@@ -161,7 +161,7 @@ export function PaymentMediumPage() {
   }
 
   return (
-    <div className="h-full min-h-0 flex flex-col xl:max-w-[80%] max-w-[1000px] mx-auto px-6 py-6 overflow-y-auto">
+    <div className="h-full min-h-0 flex flex-col xl:max-w-[80%] max-w-[1000px] w-full mx-auto px-6 py-6 overflow-y-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
         <div>
           <h1 className="text-[20px] font-extrabold tracking-tight">Payment Mediums</h1>

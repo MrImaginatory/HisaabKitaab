@@ -67,7 +67,10 @@ async function idbPut(bytes: Uint8Array): Promise<void> {
     const tx = idb.transaction(IDB_STORE, "readwrite");
     const store = tx.objectStore(IDB_STORE);
     const req = store.put(bytes, key);
-    req.onsuccess = () => resolve();
+    // Must resolve on tx.oncomplete (not req.onsuccess) — IDB only guarantees
+    // durability once the transaction commits, not when the individual request succeeds.
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
     req.onerror = () => reject(req.error);
   });
 }
@@ -91,14 +94,14 @@ async function idbPutHandle(handle: any): Promise<void> {
     const tx = idb.transaction(IDB_STORE, "readwrite");
     const store = tx.objectStore(IDB_STORE);
     if (handle) {
-      const req = store.put(handle, "file_handle");
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
+      store.put(handle, "file_handle");
     } else {
-      const req = store.delete("file_handle");
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
+      store.delete("file_handle");
     }
+    // Resolve only after the transaction is durably committed to disk.
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
   });
 }
 
@@ -306,6 +309,23 @@ export async function saveDB(): Promise<void> {
       console.error("Failed to write to file handle:", e);
     }
   }
+}
+
+/**
+ * Flush the current database to IndexedDB (and file handle if connected),
+ * then reset the module-level singleton so the next call to getDB() starts
+ * fresh. Must be awaited before switching or closing the database to
+ * guarantee no in-flight writes are silently discarded.
+ */
+export async function flushAndCloseDB(): Promise<void> {
+  await saveDB();
+  // Tear down the singleton — next getDB() call will re-initialise from IDB.
+  if (db?.close) {
+    try { db.close(); } catch { /* ignore */ }
+  }
+  db = null;
+  initPromise = null;
+  fileHandle = null;
 }
 
 export async function createBlankDBBytes(): Promise<Uint8Array> {

@@ -13,7 +13,7 @@ import { PaymentMediumPage } from "@/components/payment-medium/PaymentMediumPage
 import { SettingsPanel } from "@/components/settings/SettingsPanel";
 import { applyTheme, getStoredAccent, getStoredMode } from "@/lib/theme";
 import { loadProfileFromDB } from "@/lib/profile";
-import { createBlankDBBytes, downloadCurrentDB, openDBFromFile, getDB, setDBFromBytes, reconnectDB } from "@/lib/db";
+import { createBlankDBBytes, downloadCurrentDB, openDBFromFile, getDB, setDBFromBytes, reconnectDB, flushAndCloseDB } from "@/lib/db";
 
 import { SplashScreen } from "@/components/layout/SplashScreen";
 
@@ -53,12 +53,39 @@ export default function Home() {
   const [dbReady, setDbReady] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [active, setActive] = useState<PageKey>("dashboard");
   const [collapsed, setCollapsed] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [socialsOpen, setSocialsOpen] = useState(false);
+
+  // ---- Safe DB teardown guards ----
+  // Both handlers show a loading overlay while saveDB flushes to IndexedDB
+  // so no in-flight write is silently discarded when switching / closing.
+  const handleSwitchDb = async () => {
+    setIsSaving(true);
+    try {
+      await flushAndCloseDB();
+    } finally {
+      setIsSaving(false);
+      setDbReady(false);
+    }
+  };
+
+  const handleCloseDb = async () => {
+    setIsSaving(true);
+    try {
+      await flushAndCloseDB();
+    } finally {
+      setIsSaving(false);
+      localStorage.removeItem(LAST_DB_KEY);
+      setLastDb(null);
+      setDbReady(false);
+      window.location.reload();
+    }
+  };
 
   useEffect(() => {
     const stored = localStorage.getItem(LAST_DB_KEY);
@@ -247,19 +274,36 @@ export default function Home() {
     <>
       {showSplash && <SplashScreen onComplete={() => setShowSplash(false)} />}
       <div className="h-screen max-h-[100vh] overflow-hidden bg-[var(--color-canvas-dark)] text-[var(--color-body)] flex">
-        <Sidebar 
-        active={active} 
-        onChange={setActive} 
-        collapsed={collapsed} 
-        onToggle={() => setCollapsed((v) => !v)}
-        onSwitchDb={() => setDbReady(false)}
-        onCloseDb={() => {
-          localStorage.removeItem(LAST_DB_KEY);
-          setLastDb(null);
-          setDbReady(false);
-          window.location.reload();
-        }}
-      />
+        {/* Saving overlay — shown while flushAndCloseDB() is in flight */}
+        {isSaving && (
+          <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[var(--color-canvas-dark)]/80 backdrop-blur-[6px]" aria-live="assertive" aria-label="Saving data">
+            <div className="flex flex-col items-center gap-4">
+              {/* Animated ring */}
+              <span className="relative flex h-14 w-14">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--color-primary)] opacity-20" />
+                <span className="relative inline-flex h-14 w-14 rounded-full bg-[var(--color-surface-card-dark)] border border-[var(--color-primary)]/30 items-center justify-center">
+                  <svg className="animate-spin h-6 w-6 text-[var(--color-primary)]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                    <path className="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                  </svg>
+                </span>
+              </span>
+              <div className="text-center">
+                <div className="text-[15px] font-bold text-white tracking-tight">Saving your data…</div>
+                <div className="text-[12px] text-[var(--color-muted)] mt-1">Please wait — flushing to SQLite</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <Sidebar
+          active={active}
+          onChange={setActive}
+          collapsed={collapsed}
+          onToggle={() => setCollapsed((v) => !v)}
+          onSwitchDb={handleSwitchDb}
+          onCloseDb={handleCloseDb}
+        />
       <div className="flex-1 min-w-0 flex flex-col h-screen max-h-[100vh] overflow-hidden pb-[64px] sm:pb-0">
         <main className="flex-1 min-h-0 overflow-hidden bg-[var(--color-canvas-dark)] flex flex-col">
           {active === "dashboard" && <DashboardPage />}
@@ -288,16 +332,11 @@ export default function Home() {
         <Share2 size={20} />
       </button>
 
-      <BottomNav 
-        active={active} 
-        onChange={setActive} 
-        onSwitchDb={() => setDbReady(false)}
-        onCloseDb={() => {
-          localStorage.removeItem(LAST_DB_KEY);
-          setLastDb(null);
-          setDbReady(false);
-          window.location.reload();
-        }}
+      <BottomNav
+        active={active}
+        onChange={setActive}
+        onSwitchDb={handleSwitchDb}
+        onCloseDb={handleCloseDb}
       />
 
       {settingsOpen && (

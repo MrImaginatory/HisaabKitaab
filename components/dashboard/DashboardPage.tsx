@@ -6,7 +6,7 @@ import { displayName } from "@/lib/stringUtils";
 import { Select } from "@/components/ui/Select";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { DonutChart, DonutLegend, DonutDatum } from "@/components/ui/charts/DonutChart";
-import { LineChart, LinePoint } from "@/components/ui/charts/LineChart";
+import { LineChart, LineSeries } from "@/components/ui/charts/LineChart";
 import { PeriodPreset, PERIOD_OPTIONS, getRange, eachDay, FALLBACK_PALETTE } from "@/lib/periods";
 
 export function DashboardPage() {
@@ -185,16 +185,41 @@ export function DashboardPage() {
     return [...top, { label: "Others", value: restValue, color: "#707a8a" }];
   }, [expensesInRange, pmMap]);
 
-  const linePoints: LinePoint[] = useMemo(() => {
-    const daySums = new Map<string, number>();
+  const lineSeries: LineSeries[] = useMemo(() => {
+    const expenseSums = new Map<string, number>();
+    const incomeSums = new Map<string, number>();
+    
+    // Expenses
     expensesInRange.forEach(t => {
-      daySums.set(t.date, (daySums.get(t.date) ?? 0) + t.amount);
+      expenseSums.set(t.date, (expenseSums.get(t.date) ?? 0) + t.amount);
     });
-    return eachDay(range.start, range.end).map(date => ({
-      date,
-      value: daySums.get(date) ?? 0,
-    }));
-  }, [expensesInRange, range]);
+    
+    // Income
+    txns.forEach(t => {
+      if (t.type === "income" && t.date >= range.start && t.date <= range.end) {
+        if (selectedAccount === "all" || t.accountId === selectedAccount) {
+          incomeSums.set(t.date, (incomeSums.get(t.date) ?? 0) + t.amount);
+        }
+      }
+    });
+
+    const days = eachDay(range.start, range.end);
+    
+    return [
+      {
+        id: "expense",
+        name: "Expense",
+        color: "var(--color-trading-down)",
+        points: days.map(date => ({ date, value: expenseSums.get(date) ?? 0 })),
+      },
+      {
+        id: "income",
+        name: "Income",
+        color: "var(--color-trading-up)",
+        points: days.map(date => ({ date, value: incomeSums.get(date) ?? 0 })),
+      }
+    ];
+  }, [expensesInRange, txns, range, selectedAccount]);
 
   const kpis = [
     { label: "Total Balance", value: `₹${stats.totalBalance.toLocaleString("en-IN")}`, icon: PiggyBank, color: "var(--color-on-dark)", bg: "bg-[var(--color-primary)]/10 text-[var(--color-primary)]" },
@@ -361,16 +386,16 @@ export function DashboardPage() {
             )}
           </div>
 
-          {/* Line — daily spend */}
+          {/* Line — daily spend & income */}
           <div className="p-4 flex flex-col min-w-0 lg:col-span-2 border-t border-[var(--color-hairline-on-dark)]">
             <h4 className="text-[12px] font-bold tracking-wide text-[var(--color-muted-strong)] uppercase flex items-center gap-2 mb-4">
-              <LineIcon size={14} className="text-[var(--color-muted)]" /> Spent when · by day
+              <LineIcon size={14} className="text-[var(--color-muted)]" /> Income & Expenses · by day
             </h4>
             {loading ? (
               <div className="h-[230px] flex items-center justify-center text-[11px] text-[var(--color-muted)]">Loading SQLite…</div>
             ) : (
               <div className="rounded-[8px] bg-[var(--color-canvas-dark)] border border-[var(--color-hairline-on-dark)] p-2">
-                <LineChart points={linePoints} height={220} strokeColor="var(--color-trading-down)" />
+                <LineChart series={lineSeries} height={220} />
               </div>
             )}
           </div>
