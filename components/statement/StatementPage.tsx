@@ -84,7 +84,7 @@ export function StatementPage() {
   }, [txns]);
 
   // Compute rows with running balance per account
-  const rows: StatementRow[] = useMemo(() => {
+  const { rows, finalRemaining } = useMemo(() => {
     const filtered = expandedTxns
       .filter(t => {
         if (t.date < range.start || t.date > range.end) return false;
@@ -112,7 +112,7 @@ export function StatementPage() {
       running.set(a.id, openingBalances.get(a.id) ?? a.openingBalance);
     }
 
-    return filtered.map(t => {
+    const mappedRows = filtered.map(t => {
       const prev = running.get(t._virtualAccountId) ?? 0;
       const isIncome = t._side === 'credit' || (t._side === 'normal' && t.type === 'income');
       const after = prev + (isIncome ? t.amount : -t.amount);
@@ -135,6 +135,11 @@ export function StatementPage() {
         remaining: after,
       };
     });
+    
+    let totalRem = 0;
+    for (const val of running.values()) totalRem += val;
+    
+    return { rows: mappedRows, finalRemaining: totalRem };
   }, [expandedTxns, accounts, range, categoryMap, accountMap, paymentMediumMap, selectedAccount]);
 
   const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
@@ -305,7 +310,9 @@ export function StatementPage() {
                       <td className="px-4 py-3 text-[12px] font-num text-right font-bold text-[var(--color-trading-down)]">
                         {symbol}{totalDebit.toLocaleString("en-IN")}
                       </td>
-                      <td className="px-4 py-3" />
+                      <td className="px-4 py-3 text-[12px] font-num text-right font-bold text-white">
+                        {selectedAccount === "" ? `${symbol}${finalRemaining.toLocaleString("en-IN")}` : ""}
+                      </td>
                     </tr>
                   </tfoot>
                 </table>
