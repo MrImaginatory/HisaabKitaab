@@ -77,13 +77,19 @@ export function TransactionsPage() {
 
   const openAdd = () => {
     setEditId(null);
-    setType("expense");
+    const savedType = localStorage.getItem("hk_last_txn_type") as TransactionType | null;
+    setType(savedType ?? "expense");
     setAmount("");
-    setAccountId(accounts.length > 0 ? accounts[0].id : "");
-    setToAccountId(accounts.length > 0 ? accounts[0].id : "");
-    setCategoryId("");
-    setPaymentGroup("online");
-    setPaymentMediumId("");
+    const savedAccountId = localStorage.getItem("hk_last_txn_account_id");
+    setAccountId(savedAccountId && accounts.some(a => a.id === savedAccountId) ? savedAccountId : (accounts.length > 0 ? accounts[0].id : ""));
+    const savedToAccountId = localStorage.getItem("hk_last_txn_to_account_id");
+    setToAccountId(savedToAccountId && accounts.some(a => a.id === savedToAccountId) ? savedToAccountId : (accounts.length > 1 ? accounts[1].id : (accounts.length > 0 ? accounts[0].id : "")));
+    const savedCategoryId = localStorage.getItem("hk_last_txn_category_id");
+    setCategoryId(savedCategoryId && categories.some(c => c.id === savedCategoryId) ? savedCategoryId : "");
+    const savedPaymentGroup = localStorage.getItem("hk_last_txn_payment_group") as PaymentMediumGroup | null;
+    setPaymentGroup(savedPaymentGroup ?? "online");
+    const savedPaymentMediumId = localStorage.getItem("hk_last_txn_payment_medium_id");
+    setPaymentMediumId(savedPaymentMediumId && paymentMediums.some(m => m.id === savedPaymentMediumId) ? savedPaymentMediumId : "");
     setReason("");
     setNotes("");
     setDate(todayISO());
@@ -130,6 +136,15 @@ export function TransactionsPage() {
       const res = await dbAddTransaction(payload);
       if (!res.ok) { setFormErr(res.error ?? "Failed"); return; }
       showToast("Transaction added");
+      localStorage.setItem("hk_last_txn_type", type);
+      localStorage.setItem("hk_last_txn_account_id", accountId);
+      if (type === "transfer") {
+        localStorage.setItem("hk_last_txn_to_account_id", toAccountId);
+      } else {
+        if (categoryId) localStorage.setItem("hk_last_txn_category_id", categoryId);
+        if (paymentGroup) localStorage.setItem("hk_last_txn_payment_group", paymentGroup);
+        if (paymentMediumId) localStorage.setItem("hk_last_txn_payment_medium_id", paymentMediumId);
+      }
     }
     setIsAddOpen(false);
     await refresh();
@@ -223,6 +238,15 @@ export function TransactionsPage() {
       setAccountId(accounts[0].id);
     }
   }, [accounts, isAddOpen, accountId]);
+
+  useEffect(() => {
+    if (type === 'transfer' && accountId && toAccountId && accountId === toAccountId) {
+      const other = accounts.find(a => a.id !== accountId && !a.isClosed);
+      if (other) {
+        setToAccountId(other.id);
+      }
+    }
+  }, [type, accountId, toAccountId, accounts]);
 
   const accountMap = useMemo(() => new Map(accounts.map(a => [a.id, a])), [accounts]);
   const categoryMap = useMemo(() => new Map(categories.map(c => [c.id, c])), [categories]);
