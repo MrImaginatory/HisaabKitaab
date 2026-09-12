@@ -1,12 +1,12 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { FileSpreadsheet, FileText, ChevronLeft, ChevronRight, CalendarRange } from "lucide-react";
+import { FileSpreadsheet, FileText, ChevronLeft, ChevronRight, CalendarRange, Share2 } from "lucide-react";
 import { dbGetTransactions, dbGetAccounts, dbGetCategories, dbGetPaymentMediums, Transaction, ComputedAccount, Category, PaymentMedium } from "@/lib/db";
 import { displayName } from "@/lib/stringUtils";
 import { Select } from "@/components/ui/Select";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { PeriodPreset, PERIOD_OPTIONS, getRange } from "@/lib/periods";
-import { StatementRow, AccountSummary, downloadExcel, downloadPDF } from "@/lib/exports";
+import { StatementRow, AccountSummary, downloadExcel, downloadPDF, sharePDF } from "@/lib/exports";
 import { getProfile } from "@/lib/profile";
 
 const PAGE_SIZE = 25;
@@ -18,7 +18,14 @@ export function StatementPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [paymentMediums, setPaymentMediums] = useState<PaymentMedium[]>([]);
   const [page, setPage] = useState(0);
+  const [canShare, setCanShare] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState("all");
+
+  useEffect(() => {
+    if (typeof navigator !== "undefined" && navigator.share && navigator.canShare) {
+      setCanShare(true);
+    }
+  }, []);
 
   const [period, setPeriod] = useState<PeriodPreset>("thisMonth");
   const todayIso = () => {
@@ -164,6 +171,16 @@ export function StatementPage() {
     getProfile()
   );
 
+  const handleShare = async (useWatermark: boolean) => {
+    const success = await sharePDF(
+      { rows, range, totalCredit, totalDebit, accounts: accountsSummary, watermark: useWatermark ? getProfile().watermark : undefined },
+      getProfile()
+    );
+    if (!success) {
+      alert("Sharing failed or is not supported on this device.");
+    }
+  };
+
   return (
     <div className="h-full min-h-0 flex flex-col w-full xl:max-w-[80%] max-w-[1000px] mx-auto px-6 py-6 overflow-y-auto">
       {/* Header */}
@@ -249,6 +266,15 @@ export function StatementPage() {
             >
               <FileText size={13} className="shrink-0" /> <span className="truncate">PDF + Watermark</span>
             </button>
+            {canShare && (
+              <button
+                onClick={() => handleShare(false)}
+                disabled={rows.length === 0}
+                className="col-span-2 sm:col-span-1 w-full sm:w-auto justify-center h-8 px-3 rounded-[6px] bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] text-[11px] font-bold text-[var(--color-muted-strong)] hover:text-white hover:border-[var(--color-primary)]/30 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+              >
+                <Share2 size={13} className="shrink-0" /> <span className="truncate">Share PDF</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

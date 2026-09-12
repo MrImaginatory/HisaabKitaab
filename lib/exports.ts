@@ -77,6 +77,26 @@ export async function downloadPDF(data: PDFExportData, profile: ProfileSummary):
   URL.revokeObjectURL(url);
 }
 
+export async function sharePDF(data: PDFExportData, profile: ProfileSummary): Promise<boolean> {
+  const blob = await generateStatementPDF(data, profile);
+  const filename = `statement-${data.range.start}-to-${data.range.end}.pdf`;
+  const file = new File([blob], filename, { type: "application/pdf" });
+  
+  if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({
+        files: [file],
+        title: "Transaction Statement",
+      });
+      return true;
+    } catch (e) {
+      console.error("Share failed:", e);
+      return false;
+    }
+  }
+  return false;
+}
+
 export function downloadExcel(
   rows: StatementRow[],
   range: DateRange,
