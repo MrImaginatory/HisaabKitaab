@@ -85,7 +85,7 @@ export function Select({ value, onChange, options, placeholder, ariaLabel }: Sel
                 width: rect.width,
                 zIndex: 60,
               }}
-              className="rounded-[8px] bg-[var(--color-surface-card-dark)] border border-[var(--color-hairline-on-dark)] shadow-[0_12px_32px_rgba(0,0,0,0.55)] overflow-hidden p-1"
+              className="rounded-[8px] bg-[var(--color-surface-card-dark)] border border-[var(--color-hairline-on-dark)] shadow-[0_12px_32px_rgba(0,0,0,0.55)] overflow-y-auto max-h-[250px] p-1"
             >
               {options.map((opt) => {
                 const isActive = opt.value === value;
