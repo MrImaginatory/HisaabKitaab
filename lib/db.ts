@@ -358,6 +358,12 @@ export async function openDBFromFile(file: File, handle?: any): Promise<void> {
   await saveDB();
 }
 
+export async function linkDBFile(handle: any): Promise<void> {
+  fileHandle = handle;
+  await idbPutHandle(fileHandle);
+  await saveDB();
+}
+
 export async function reconnectDB(): Promise<void> {
   fileHandle = await idbGetHandle();
   if (fileHandle) {
@@ -379,6 +385,17 @@ export async function reconnectDB(): Promise<void> {
     return;
   }
   await getDB();
+}
+
+export async function getFileHandleStatus(): Promise<{ hasFileHandle: boolean; hasPermission: boolean }> {
+  try {
+    const handle = await idbGetHandle();
+    if (!handle) return { hasFileHandle: false, hasPermission: false };
+    const perm = await handle.queryPermission({ mode: 'readwrite' });
+    return { hasFileHandle: true, hasPermission: perm === 'granted' };
+  } catch {
+    return { hasFileHandle: false, hasPermission: false };
+  }
 }
 
 export async function downloadCurrentDB(filename: string) {
@@ -833,9 +850,48 @@ export async function dbAddTransaction(t: Omit<Transaction, "id" | "createdAt">)
     d.run("INSERT INTO transactions (id, type, amount, accountId, toAccountId, categoryId, paymentMediumId, reason, notes, date, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
       trans.id, trans.type, trans.amount, trans.accountId, trans.toAccountId, trans.categoryId, trans.paymentMediumId, trans.reason, trans.notes, trans.date, trans.createdAt
     ]);
-    await saveDB();
+    try { await saveDB(); } catch {}
     return { ok: true, transaction: trans };
   } catch (e: any) {
+    return { ok: false, error: e?.message ?? String(e) };
+  }
+}
+
+export async function dbAddTransactions(txns: Omit<Transaction, "id" | "createdAt">[]): Promise<{ ok: boolean; error?: string; insertedCount?: number }> {
+  const d = await getDB();
+  const validTxns: Transaction[] = [];
+  const now = Date.now();
+  
+  for (let i = 0; i < txns.length; i++) {
+    const t = txns[i];
+    validTxns.push({
+      id: `txn_${now}_${i}_${Math.random().toString(36).slice(2, 6)}`,
+      type: t.type,
+      amount: Number(t.amount),
+      accountId: t.accountId,
+      toAccountId: t.type === "transfer" ? t.toAccountId : "",
+      categoryId: t.type === "transfer" ? "" : t.categoryId,
+      paymentMediumId: t.paymentMediumId ?? "",
+      reason: t.reason.trim(),
+      notes: (t.notes ?? "").trim(),
+      date: t.date,
+      createdAt: now + i,
+    });
+  }
+
+  try {
+    d.run("BEGIN TRANSACTION");
+    for (const t of validTxns) {
+      d.run(
+        "INSERT INTO transactions (id, type, amount, accountId, toAccountId, categoryId, paymentMediumId, reason, notes, date, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [t.id, t.type, t.amount, t.accountId, t.toAccountId, t.categoryId, t.paymentMediumId, t.reason, t.notes, t.date, t.createdAt]
+      );
+    }
+    d.run("COMMIT");
+    try { await saveDB(); } catch {}
+    return { ok: true, insertedCount: validTxns.length };
+  } catch (e: any) {
+    d.run("ROLLBACK");
     return { ok: false, error: e?.message ?? String(e) };
   }
 }

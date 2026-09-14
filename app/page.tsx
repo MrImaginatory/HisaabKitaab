@@ -14,6 +14,7 @@ import { SettingsPanel } from "@/components/settings/SettingsPanel";
 import { applyTheme, getStoredAccent, getStoredMode } from "@/lib/theme";
 import { loadProfileFromDB } from "@/lib/profile";
 import { createBlankDBBytes, downloadCurrentDB, openDBFromFile, getDB, setDBFromBytes, reconnectDB, flushAndCloseDB } from "@/lib/db";
+import { FloatingSaveButton } from "@/components/layout/FloatingSaveButton";
 
 import { SplashScreen } from "@/components/layout/SplashScreen";
 
@@ -315,6 +316,8 @@ export default function Home() {
           {active === "profile" && <ProfilePage />}
         </main>
       </div>
+
+      <FloatingSaveButton />
 
       <button
         onClick={() => setSettingsOpen(true)}

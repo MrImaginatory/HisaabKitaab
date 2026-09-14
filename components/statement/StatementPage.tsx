@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { FileSpreadsheet, FileText, ChevronLeft, ChevronRight, CalendarRange, Share2 } from "lucide-react";
+import { FileSpreadsheet, FileText, ChevronLeft, ChevronRight, CalendarRange, Share2, Upload } from "lucide-react";
 import { dbGetTransactions, dbGetAccounts, dbGetCategories, dbGetPaymentMediums, Transaction, ComputedAccount, Category, PaymentMedium } from "@/lib/db";
 import { displayName } from "@/lib/stringUtils";
 import { Select } from "@/components/ui/Select";
@@ -8,6 +8,7 @@ import { DatePicker } from "@/components/ui/DatePicker";
 import { PeriodPreset, PERIOD_OPTIONS, getRange } from "@/lib/periods";
 import { StatementRow, AccountSummary, downloadExcel, downloadPDF, sharePDF } from "@/lib/exports";
 import { getProfile } from "@/lib/profile";
+import { ImportExcelModal } from "./ImportExcelModal";
 
 const PAGE_SIZE = 25;
 
@@ -20,9 +21,11 @@ export function StatementPage() {
   const [page, setPage] = useState(0);
   const [canShare, setCanShare] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState("all");
+  
+  const [importFile, setImportFile] = useState<File | null>(null);
 
   useEffect(() => {
-    if (typeof navigator !== "undefined" && navigator.share && navigator.canShare) {
+    if (typeof navigator !== "undefined" && "share" in navigator && "canShare" in navigator) {
       setCanShare(true);
     }
   }, []);
@@ -181,6 +184,14 @@ export function StatementPage() {
     }
   };
 
+  const handleFilePicked = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImportFile(file);
+    }
+    e.target.value = ""; // Reset for re-selection
+  };
+
   return (
     <div className="h-full min-h-0 flex flex-col w-full xl:max-w-[80%] max-w-[1000px] mx-auto px-6 py-6 overflow-y-auto">
       {/* Header */}
@@ -243,7 +254,11 @@ export function StatementPage() {
           </div>
 
           {/* Export buttons */}
-          <div className="grid grid-cols-2 sm:flex items-center gap-2 w-full sm:w-auto">
+          <div className="grid grid-cols-2 sm:flex items-center gap-2 w-full sm:w-auto flex-wrap">
+            <label className="w-full sm:w-auto justify-center h-8 px-3 rounded-[6px] bg-[var(--color-surface-elevated-dark)] border border-[var(--color-primary)] text-[11px] font-bold text-[var(--color-primary)] hover:bg-[var(--color-primary)]/10 transition cursor-pointer flex items-center gap-1.5">
+              <Upload size={13} className="shrink-0" /> <span className="truncate">Import</span>
+              <input type="file" className="hidden" accept=".xlsx" onChange={handleFilePicked} />
+            </label>
             <button
               onClick={() => handlePDF(false)}
               disabled={rows.length === 0}
@@ -421,6 +436,31 @@ export function StatementPage() {
           </>
         )}
       </div>
+
+      {importFile && (
+        <ImportExcelModal
+          file={importFile}
+          accounts={accounts}
+          categories={categories}
+          paymentMediums={paymentMediums}
+          existingTxns={txns}
+          onClose={() => setImportFile(null)}
+          onSuccess={() => {
+            setImportFile(null);
+            // Re-fetch data
+            setLoading(true);
+            Promise.all([dbGetTransactions(), dbGetAccounts(), dbGetCategories(), dbGetPaymentMediums()]).then(
+              ([txnsData, accsData, catsData, medsData]) => {
+                setTxns(txnsData);
+                setAccounts(accsData);
+                setCategories(catsData);
+                setPaymentMediums(medsData);
+                setLoading(false);
+              }
+            );
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
-import { useState } from "react";
-import { LayoutDashboard, Receipt, Wallet, Tag, FileText, User, CreditCard, ChevronLeft, ChevronRight, LayoutGrid, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { LayoutDashboard, Receipt, Wallet, Tag, FileText, User, CreditCard, ChevronLeft, ChevronRight, LayoutGrid, X, AlertTriangle } from "lucide-react";
+import { getFileHandleStatus } from "@/lib/db";
 
 export type PageKey = "dashboard" | "transactions" | "accounts" | "category" | "paymentMedium" | "statement" | "profile";
 
@@ -42,6 +43,16 @@ export function Sidebar({
   onSwitchDb: () => void;
   onCloseDb: () => void;
 }) {
+  const [dbStatus, setDbStatus] = useState<{ hasFileHandle: boolean; hasPermission: boolean } | null>(null);
+
+  useEffect(() => {
+    getFileHandleStatus().then(setDbStatus);
+    const interval = setInterval(() => {
+      getFileHandleStatus().then(setDbStatus);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <aside
       className={`hidden sm:flex shrink-0 h-screen sticky top-0 bg-[var(--color-canvas-dark)] border-r border-[var(--color-hairline-on-dark)] flex-col transition-[width] duration-200 ease-out relative ${collapsed ? "w-[64px]" : "w-[252px]"}`}
@@ -114,11 +125,24 @@ export function Sidebar({
         {/* Status — trust-badge style */}
         <div className={`rounded-[8px] bg-[var(--color-surface-card-dark)] border border-[var(--color-hairline-on-dark)] ${collapsed ? "p-2 flex justify-center" : "px-2.5 py-2"}`}>
           {collapsed ? (
-            <span className="w-2 h-2 rounded-full bg-[var(--color-trading-up)] animate-pulse" title="SQLite • Offline" />
+            <span 
+              className={`w-2 h-2 rounded-full ${dbStatus?.hasFileHandle && !dbStatus?.hasPermission ? "bg-[var(--color-trading-down)]" : "bg-[var(--color-trading-up)]"} animate-pulse`} 
+              title={dbStatus?.hasFileHandle && !dbStatus.hasPermission ? "No Permission to save DB file" : "SQLite • Offline"} 
+            />
           ) : (
-            <div className="flex items-center gap-2 text-[11px] font-medium text-[var(--color-muted)]">
-              <span className="w-2 h-2 rounded-full bg-[var(--color-trading-up)] animate-pulse shrink-0" />
-              <span className="truncate tracking-wide">SQLite • Offline • Local</span>
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2 text-[11px] font-medium text-[var(--color-muted)]">
+                <span className={`w-2 h-2 rounded-full ${dbStatus?.hasFileHandle && !dbStatus?.hasPermission ? "bg-[var(--color-trading-down)]" : "bg-[var(--color-trading-up)]"} animate-pulse shrink-0`} />
+                <span className="truncate tracking-wide">
+                  {dbStatus?.hasFileHandle && !dbStatus.hasPermission ? "Save Permission Lost" : "SQLite • Offline • Local"}
+                </span>
+              </div>
+              {dbStatus?.hasFileHandle && !dbStatus.hasPermission && (
+                <div className="text-[10px] text-[var(--color-trading-down)] leading-tight mt-1 flex gap-1">
+                  <AlertTriangle size={12} className="shrink-0" />
+                  <span>Your changes aren't saving to the file. Re-open DB or export as Excel!</span>
+                </div>
+              )}
             </div>
           )}
         </div>
