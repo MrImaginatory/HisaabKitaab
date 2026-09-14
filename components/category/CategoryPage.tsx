@@ -350,37 +350,33 @@ export function CategoryPage() {
               </div>
               <div className="md:hidden flex flex-col gap-3 p-4">
                 {filteredCats.map((c) => (
-                  <div key={c.id} className="bg-[var(--color-surface-card-dark)] p-4 rounded-lg shadow-md w-full font-sans border border-[var(--color-hairline-on-dark)]">
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="flex items-center gap-3">
-                        <button onClick={() => toggleSelect(c.id)} className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shrink-0 border relative overflow-hidden transition-all" style={{ background: selectedIds.has(c.id) ? "var(--color-primary)" : c.color, color: selectedIds.has(c.id) ? "black" : "var(--color-canvas-dark)", borderColor: selectedIds.has(c.id) ? "var(--color-primary)" : "rgba(255,255,255,0.15)" }}>
-                          {selectedIds.has(c.id) ? <Check size={20} strokeWidth={3} /> : c.name.slice(0, 2).toUpperCase()}
-                        </button>
-                        <div className="flex flex-col">
-                          <h3 className={`font-semibold text-[14px] leading-tight max-w-[160px] truncate ${c.isDeleted ? "text-[var(--color-muted)] line-through" : "text-white"}`}>
-                            {displayName(c.name)}
-                          </h3>
-                          <span className="text-[var(--color-muted)] font-num text-[11px] mt-0.5 tracking-wide truncate">
-                            {c.color}
-                          </span>
-                        </div>
+                  <div key={c.id} onClick={() => openEdit(c)} className="flex items-center gap-3 p-3 bg-[var(--color-surface-card-dark)] rounded-[8px] border border-[var(--color-hairline-on-dark)] cursor-pointer shadow-sm hover:border-[var(--color-primary)]/30 transition">
+                    {/* Left: Avatar (Select Toggle) */}
+                    <button onClick={(e) => { e.stopPropagation(); toggleSelect(c.id); }} className="w-8 h-8 rounded-[6px] shrink-0 flex items-center justify-center text-[10px] font-bold transition-all border" style={{ background: selectedIds.has(c.id) ? "var(--color-primary)" : c.color, color: selectedIds.has(c.id) ? "black" : "var(--color-canvas-dark)", borderColor: selectedIds.has(c.id) ? "var(--color-primary)" : "rgba(255,255,255,0.15)" }}>
+                      {selectedIds.has(c.id) ? <Check size={14} strokeWidth={3} /> : c.name.slice(0, 2).toUpperCase()}
+                    </button>
+                    
+                    {/* Middle: Details */}
+                    <div className="flex-1 min-w-0 flex flex-col justify-center">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[13px] font-semibold truncate max-w-[140px] ${c.isDeleted ? "text-[var(--color-muted)] line-through" : "text-white"}`}>{displayName(c.name)}</span>
                       </div>
-                      <div className="flex items-center gap-3 shrink-0 ml-2">
-                        <div className="text-right">
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${c.type === "income" ? "bg-[var(--color-trading-up)]/12 text-[var(--color-trading-up)] border-[var(--color-trading-up)]/20" : "bg-[var(--color-trading-down)]/12 text-[var(--color-trading-down)] border-[var(--color-trading-down)]/20"}`}>
-                            {displayName(c.type)}
-                          </span>
-                        </div>
+                      <div className="text-[11px] font-num text-[var(--color-muted)] mt-0.5 truncate">
+                        {c.color}
                       </div>
                     </div>
                     
-                    <div className="flex justify-end items-center mt-2 border-t border-[var(--color-hairline-on-dark)] pt-3">
-                      <div className="flex gap-1 text-[var(--color-muted)] shrink-0">
-                        <button onClick={() => openEdit(c)} className="w-8 h-8 rounded-[6px] hover:text-[#fcd535] hover:bg-[#fcd535]/10 flex items-center justify-center transition-colors" aria-label="Edit">
-                          <Pencil size={14} />
+                    {/* Right: Badge & Actions */}
+                    <div className="flex flex-col items-end justify-center shrink-0 ml-2">
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-[4px] border uppercase tracking-wider ${c.type === "income" ? "bg-[var(--color-trading-up)]/12 text-[var(--color-trading-up)] border-[var(--color-trading-up)]/20" : "bg-[var(--color-trading-down)]/12 text-[var(--color-trading-down)] border-[var(--color-trading-down)]/20"}`}>
+                        {displayName(c.type)}
+                      </span>
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <button onClick={(e) => { e.stopPropagation(); openEdit(c); }} className="text-[var(--color-muted)] hover:text-[#fcd535] transition-colors" aria-label="Edit">
+                          <Pencil size={12} />
                         </button>
-                        <button onClick={() => handleDelete(c.id, c.name)} className="w-8 h-8 rounded-[6px] hover:text-[var(--color-trading-down)] hover:bg-[var(--color-trading-down)]/10 flex items-center justify-center transition-colors" aria-label="Delete">
-                          <Trash2 size={14} />
+                        <button onClick={(e) => { e.stopPropagation(); handleDelete(c.id, c.name); }} className="text-[var(--color-muted)] hover:text-[var(--color-trading-down)] transition-colors" aria-label="Delete">
+                          <Trash2 size={12} />
                         </button>
                       </div>
                     </div>

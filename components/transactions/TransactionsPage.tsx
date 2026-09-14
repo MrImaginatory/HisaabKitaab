@@ -443,51 +443,37 @@ export function TransactionsPage() {
                   const avatarText = c ? c.name.slice(0, 2).toUpperCase() : "?";
 
                   return (
-                    <div key={t.id} onClick={() => setViewTxn(t)} className="cursor-pointer bg-[var(--color-surface-card-dark)] p-4 rounded-lg shadow-md w-full font-sans border border-[var(--color-hairline-on-dark)]">
-                      {/* Top Row: Avatar, Title/Type, Amount */}
-                      <div className="flex justify-between items-start mb-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full flex items-center justify-center text-[var(--color-canvas-dark)] font-bold text-sm shrink-0" style={{ background: t.type === 'transfer' ? "var(--color-primary)" : (c ? c.color : "var(--color-surface-elevated-dark)") }}>
-                            {t.type === 'transfer' ? 'TR' : avatarText}
-                          </div>
-                          <div className="flex flex-col">
-                            <h3 className="text-white font-semibold text-[14px] leading-tight max-w-[160px] truncate">
-                              {t.reason}
-                            </h3>
-                            <span className="text-[var(--color-muted)] text-[11px] mt-0.5 uppercase tracking-wide">
-                              {t.type}
+                    <div key={t.id} onClick={() => setViewTxn(t)} className="flex items-center gap-3 p-3 bg-[var(--color-surface-card-dark)] rounded-[8px] border border-[var(--color-hairline-on-dark)] cursor-pointer shadow-sm hover:border-[var(--color-primary)]/30 transition">
+                      {/* Left: Avatar */}
+                      <div className="w-8 h-8 rounded-[6px] shrink-0 flex items-center justify-center text-[10px] font-bold text-[var(--color-canvas-dark)]" style={{ background: t.type === 'transfer' ? "var(--color-primary)" : (c ? c.color : "var(--color-surface-elevated-dark)") }}>
+                        {t.type === 'transfer' ? 'TR' : avatarText}
+                      </div>
+                      
+                      {/* Middle: Details */}
+                      <div className="flex-1 min-w-0 flex flex-col justify-center">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[13px] font-semibold text-white truncate max-w-[120px]">{t.reason}</span>
+                          {m && m.group && (
+                            <span className="text-[9px] font-bold tracking-wider text-[var(--color-muted-strong)] uppercase shrink-0">
+                              {m.group}
                             </span>
-                          </div>
+                          )}
                         </div>
-                        
-                        <div className="text-right shrink-0 ml-2">
-                          <span className={`font-num font-bold text-[14px] ${t.type === 'transfer' ? 'text-white' : isNegative ? 'text-[var(--color-trading-down)]' : 'text-[var(--color-trading-up)]'}`}>
-                            {t.type === 'transfer' ? '' : isNegative ? '-' : '+'}₹{Math.abs(t.amount).toLocaleString('en-IN')}
+                        <div className="text-[11px] text-[var(--color-muted)] mt-0.5 truncate">
+                          {t.type === 'transfer' ? `${a ? displayName(a.name) : "?"} → ${accountMap.get(t.toAccountId) ? displayName(accountMap.get(t.toAccountId)!.name) : "?"}` : (a ? displayName(a.name) : "Unknown Account")} • {t.date}
+                        </div>
+                      </div>
+                      
+                      {/* Right: Amount and Category tag */}
+                      <div className="flex flex-col items-end justify-center shrink-0 ml-2">
+                        <span className={`font-num font-bold text-[13px] ${t.type === 'transfer' ? 'text-white' : isNegative ? 'text-[var(--color-trading-down)]' : 'text-[var(--color-trading-up)]'}`}>
+                          {t.type === 'transfer' ? '' : isNegative ? '-' : '+'}₹{Math.abs(t.amount).toLocaleString('en-IN')}
+                        </span>
+                        {m && (
+                          <span className="text-[9px] font-bold tracking-wide text-[var(--color-muted)] bg-[var(--color-surface-elevated-dark)] px-1.5 py-0.5 rounded-[4px] mt-1 uppercase">
+                            {displayName(m.name)}
                           </span>
-                        </div>
-                      </div>
-
-                      {/* Middle Row: Bank and Date */}
-                      <div className="flex justify-between items-center text-[11px] text-[var(--color-muted-strong)] mb-4 bg-[var(--color-surface-elevated-dark)] px-3 py-2 rounded-[6px]">
-                         <span className="truncate max-w-[150px]">{t.type === 'transfer' ? `${a ? displayName(a.name) : "?"} → ${accountMap.get(t.toAccountId) ? displayName(accountMap.get(t.toAccountId)!.name) : "?"}` : (a ? displayName(a.name) : "Unknown Account")}</span>
-                         <span className="font-num shrink-0">{t.date}</span>
-                      </div>
-
-                      {/* Bottom Row: Method/Category and Actions */}
-                      <div className="flex justify-between items-center mt-2 border-t border-[var(--color-hairline-on-dark)] pt-3">
-                        <div className="flex flex-col min-w-0 mr-4">
-                          <span className="text-white font-medium text-[12px] uppercase tracking-wide">{m ? m.group : "—"}</span>
-                          <span className="text-[var(--color-muted)] text-[11px] truncate">{m ? displayName(m.name) : "—"} • {t.type === 'transfer' ? "Transfer" : (c ? displayName(c.name) : "—")}</span>
-                        </div>
-                        
-                        <div className="flex gap-1 text-[var(--color-muted)] shrink-0">
-                          <button onClick={(e) => { e.stopPropagation(); openEdit(t); }} className="w-8 h-8 rounded-[6px] hover:text-[#fcd535] hover:bg-[#fcd535]/10 flex items-center justify-center transition-colors" aria-label="Edit">
-                            <Pencil size={14} />
-                          </button>
-                          <button onClick={(e) => { e.stopPropagation(); openDeleteDialog(t); }} className="w-8 h-8 rounded-[6px] hover:text-[var(--color-trading-down)] hover:bg-[var(--color-trading-down)]/10 flex items-center justify-center transition-colors" aria-label="Delete">
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
+                        )}
                       </div>
                     </div>
                   );
@@ -623,7 +609,11 @@ export function TransactionsPage() {
               </div>
             )}
             
-            <div className="pt-2 flex justify-end gap-2 border-t border-[var(--color-hairline-on-dark)] mt-2 pt-4">
+            <div className="pt-2 flex justify-between gap-2 border-t border-[var(--color-hairline-on-dark)] mt-2 pt-4">
+              <div className="flex gap-2">
+                <Button variant="secondary" onClick={() => { setViewTxn(null); openEdit(viewTxn); }}>Edit</Button>
+                <Button variant="tradingDown" onClick={() => { setViewTxn(null); openDeleteDialog(viewTxn); }}>Delete</Button>
+              </div>
               <Button onClick={() => setViewTxn(null)}>Close</Button>
             </div>
           </div>

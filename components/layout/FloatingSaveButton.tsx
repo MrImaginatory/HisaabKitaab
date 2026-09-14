@@ -1,10 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Database, Save, AlertTriangle, CheckCircle, RefreshCcw } from "lucide-react";
-import { getFileHandleStatus, linkDBFile, saveDB, reconnectDB } from "@/lib/db";
+import { getFileHandleStatus, linkDBFile, saveDB, reconnectDB, dbGetTransactions } from "@/lib/db";
 
 export function FloatingSaveButton() {
   const [dbStatus, setDbStatus] = useState<{ hasFileHandle: boolean; hasPermission: boolean } | null>(null);
+  const [txnCount, setTxnCount] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -12,6 +13,12 @@ export function FloatingSaveButton() {
   const checkStatus = async () => {
     const status = await getFileHandleStatus();
     setDbStatus(status);
+    try {
+      const txns = await dbGetTransactions();
+      setTxnCount(txns.length);
+    } catch {
+      setTxnCount(0);
+    }
   };
 
   useEffect(() => {
@@ -74,10 +81,18 @@ export function FloatingSaveButton() {
     showToast("Database linked and saved!");
   };
 
-  if (!dbStatus) return null;
+  if (!dbStatus || txnCount === null) return null;
 
   const isDisconnected = dbStatus.hasFileHandle && !dbStatus.hasPermission;
   const isUnlinked = !dbStatus.hasFileHandle;
+  const isFullyConnected = !isDisconnected && !isUnlinked;
+
+  // Hide button if there are no transactions at all.
+  if (txnCount === 0) return null;
+
+  // Hide button if database is connected successfully (it auto-saves so there's nothing manually to save),
+  // EXCEPT when it just successfully saved and we want to show the brief "Saved!" checkmark animation.
+  if (isFullyConnected && !justSaved) return null;
 
   return (
     <>

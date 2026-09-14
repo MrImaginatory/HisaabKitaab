@@ -254,38 +254,43 @@ export function StatementPage() {
           </div>
 
           {/* Export buttons */}
-          <div className="grid grid-cols-2 sm:flex items-center gap-2 w-full sm:w-auto flex-wrap">
-            <label className="w-full sm:w-auto justify-center h-8 px-3 rounded-[6px] bg-[var(--color-surface-elevated-dark)] border border-[var(--color-primary)] text-[11px] font-bold text-[var(--color-primary)] hover:bg-[var(--color-primary)]/10 transition cursor-pointer flex items-center gap-1.5">
+          <div className="grid grid-cols-2 gap-2 w-full sm:w-auto mt-4 sm:mt-0">
+            {/* Row 1: Import, Excel */}
+            <label className="col-span-1 justify-center h-8 px-3 rounded-[6px] bg-[var(--color-surface-elevated-dark)] border border-[var(--color-primary)] text-[11px] font-bold text-[var(--color-primary)] hover:bg-[var(--color-primary)]/10 transition cursor-pointer flex items-center gap-1.5">
               <Upload size={13} className="shrink-0" /> <span className="truncate">Import</span>
               <input type="file" className="hidden" accept=".xlsx" onChange={handleFilePicked} />
             </label>
             <button
-              onClick={() => handlePDF(false)}
-              disabled={rows.length === 0}
-              className="w-full sm:w-auto justify-center h-8 px-3 rounded-[6px] bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] text-[11px] font-bold text-[var(--color-muted-strong)] hover:text-white hover:border-[var(--color-primary)]/30 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
-            >
-              <FileText size={13} className="shrink-0" /> <span className="truncate">PDF</span>
-            </button>
-            <button
               onClick={handleExcel}
               disabled={rows.length === 0}
-              className="w-full sm:w-auto justify-center h-8 px-3 rounded-[6px] bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] text-[11px] font-bold text-[var(--color-muted-strong)] hover:text-white hover:border-[var(--color-primary)]/30 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+              className="col-span-1 justify-center h-8 px-3 rounded-[6px] bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] text-[11px] font-bold text-[var(--color-muted-strong)] hover:text-white hover:border-[var(--color-primary)]/30 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
             >
               <FileSpreadsheet size={13} className="shrink-0" /> <span className="truncate">Excel</span>
+            </button>
+            
+            {/* Row 2: PDF, Watermark PDF */}
+            <button
+              onClick={() => handlePDF(false)}
+              disabled={rows.length === 0}
+              className="col-span-1 justify-center h-8 px-3 rounded-[6px] bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] text-[11px] font-bold text-[var(--color-muted-strong)] hover:text-white hover:border-[var(--color-primary)]/30 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+            >
+              <FileText size={13} className="shrink-0" /> <span className="truncate">PDF</span>
             </button>
             <button
               onClick={() => handlePDF(true)}
               disabled={rows.length === 0 || !getProfile().watermark}
               title={!getProfile().watermark ? "Set watermark text in Profile first" : "Download PDF with watermark"}
-              className="col-span-2 sm:col-span-1 w-full sm:w-auto justify-center h-8 px-3 rounded-[6px] bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] text-[11px] font-bold text-[var(--color-muted-strong)] hover:text-white hover:border-[var(--color-primary)]/30 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+              className="col-span-1 justify-center h-8 px-3 rounded-[6px] bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] text-[11px] font-bold text-[var(--color-muted-strong)] hover:text-white hover:border-[var(--color-primary)]/30 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
             >
-              <FileText size={13} className="shrink-0" /> <span className="truncate">PDF + Watermark</span>
+              <FileText size={13} className="shrink-0" /> <span className="truncate">Watermark PDF</span>
             </button>
+
+            {/* Row 3: Share PDF */}
             {canShare && (
               <button
                 onClick={() => handleShare(false)}
                 disabled={rows.length === 0}
-                className="col-span-2 sm:col-span-1 w-full sm:w-auto justify-center h-8 px-3 rounded-[6px] bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] text-[11px] font-bold text-[var(--color-muted-strong)] hover:text-white hover:border-[var(--color-primary)]/30 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                className="col-span-2 justify-center h-8 px-3 rounded-[6px] bg-[var(--color-surface-elevated-dark)] border border-[var(--color-hairline-on-dark)] text-[11px] font-bold text-[var(--color-muted-strong)] hover:text-white hover:border-[var(--color-primary)]/30 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
               >
                 <Share2 size={13} className="shrink-0" /> <span className="truncate">Share PDF</span>
               </button>
@@ -365,44 +370,37 @@ export function StatementPage() {
                   const amt = isNegative ? r.debit : r.credit;
 
                   return (
-                    <div key={idx} className="bg-[var(--color-surface-card-dark)] p-4 rounded-lg shadow-md w-full font-sans border border-[var(--color-hairline-on-dark)]">
-                      <div className="flex justify-between items-start mb-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0 border border-white/10" style={{ background: r.category === 'Self Transfer' || r.category === 'Settlement' ? "var(--color-primary)" : "var(--color-surface-elevated-dark)", color: r.category === 'Self Transfer' || r.category === 'Settlement' ? "black" : "white" }}>
-                            {r.category === 'Self Transfer' || r.category === 'Settlement' ? "TR" : r.category.slice(0, 2).toUpperCase()}
-                          </div>
-                          <div className="flex flex-col">
-                            <h3 className="text-white font-semibold text-[14px] leading-tight max-w-[140px] truncate">
-                              {r.category}
-                            </h3>
-                            <span className="text-[var(--color-muted)] text-[11px] mt-0.5 tracking-wide truncate max-w-[140px]">
-                              {r.notes || "No notes"}
-                            </span>
-                          </div>
-                        </div>
-                        
-                        <div className="text-right shrink-0 ml-2">
-                          <span className={`font-num font-bold text-[14px] ${isNegative ? 'text-[var(--color-trading-down)]' : 'text-[var(--color-trading-up)]'}`}>
-                            {isNegative ? '-' : '+'}{symbol}{Math.abs(amt).toLocaleString('en-IN')}
+                    <div key={idx} className="flex items-center gap-3 p-3 bg-[var(--color-surface-card-dark)] rounded-[8px] border border-[var(--color-hairline-on-dark)] shadow-sm">
+                      {/* Left: Avatar */}
+                      <div className="w-8 h-8 rounded-[6px] shrink-0 flex items-center justify-center text-[10px] font-bold border border-white/10" style={{ background: r.category === 'Self Transfer' || r.category === 'Settlement' ? "var(--color-primary)" : "var(--color-surface-elevated-dark)", color: r.category === 'Self Transfer' || r.category === 'Settlement' ? "black" : "white" }}>
+                        {r.category === 'Self Transfer' || r.category === 'Settlement' ? "TR" : r.category.slice(0, 2).toUpperCase()}
+                      </div>
+                      
+                      {/* Middle: Details */}
+                      <div className="flex-1 min-w-0 flex flex-col justify-center">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[13px] font-semibold text-white truncate max-w-[120px]">
+                            {r.notes || r.category}
                           </span>
+                          {r.paymentMode && (
+                            <span className="text-[9px] font-bold tracking-wider text-[var(--color-muted-strong)] uppercase shrink-0">
+                              {r.paymentMode.split(" · ")[1] || r.paymentMode.split(" · ")[0] || "PAYMENT"}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-[var(--color-muted)] mt-0.5 truncate">
+                          {r.account} • {r.date}
                         </div>
                       </div>
-
-                      <div className="flex justify-between items-center text-[11px] text-[var(--color-muted-strong)] mb-4 bg-[var(--color-surface-elevated-dark)] px-3 py-2 rounded-[6px]">
-                         <span className="truncate max-w-[140px]">{r.account}</span>
-                         <span className="font-num shrink-0">{r.date}</span>
-                      </div>
-
-                      <div className="flex justify-between items-center mt-2 border-t border-[var(--color-hairline-on-dark)] pt-3">
-                        <div className="flex flex-col min-w-0 mr-4">
-                          <span className="text-[var(--color-muted)] text-[11px] truncate uppercase">Payment</span>
-                          <span className="text-white font-medium text-[12px] truncate">{r.paymentMode || "—"}</span>
-                        </div>
-                        
-                        <div className="flex flex-col items-end shrink-0">
-                          <span className="text-[var(--color-muted)] text-[11px] truncate uppercase">Remaining</span>
-                          <span className="text-white font-medium font-num text-[12px] truncate">{symbol}{r.remaining.toLocaleString('en-IN')}</span>
-                        </div>
+                      
+                      {/* Right: Amount & Remaining Balance */}
+                      <div className="flex flex-col items-end justify-center shrink-0 ml-2">
+                        <span className={`font-num font-bold text-[13px] ${isNegative ? 'text-[var(--color-trading-down)]' : 'text-[var(--color-trading-up)]'}`}>
+                          {isNegative ? '-' : '+'}{symbol}{Math.abs(amt).toLocaleString('en-IN')}
+                        </span>
+                        <span className="text-[9px] font-bold tracking-wide text-[var(--color-muted)] bg-[var(--color-surface-elevated-dark)] px-1.5 py-0.5 rounded-[4px] mt-1 uppercase">
+                          BAL: {symbol}{r.remaining.toLocaleString('en-IN')}
+                        </span>
                       </div>
                     </div>
                   );

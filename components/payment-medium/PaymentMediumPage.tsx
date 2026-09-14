@@ -199,30 +199,33 @@ export function PaymentMediumPage() {
               </div>
               <div className="md:hidden flex flex-col gap-3 p-4">
                 {filtered.map((m) => (
-                  <div key={m.id} className="bg-[var(--color-surface-card-dark)] p-4 rounded-lg shadow-md w-full font-sans border border-[var(--color-hairline-on-dark)]">
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="flex items-center gap-3">
-                        <button onClick={() => toggleSelect(m.id)} className="w-10 h-10 rounded-full flex items-center justify-center border shrink-0 relative overflow-hidden transition-all" style={{ background: selectedIds.has(m.id) ? "var(--color-primary)" : "var(--color-surface-elevated-dark)", color: selectedIds.has(m.id) ? "black" : (m.group === "online" ? "var(--color-accent)" : "var(--color-trading-up)"), borderColor: selectedIds.has(m.id) ? "var(--color-primary)" : "var(--color-hairline-on-dark)" }}>
-                          {selectedIds.has(m.id) ? <Check size={20} strokeWidth={3} /> : (m.group === "online" ? <Wifi className="w-4 h-4" /> : <Banknote className="w-4 h-4" />)}
-                        </button>
-                        <h3 className="text-white font-semibold text-[14px] leading-tight max-w-[160px] truncate">
-                          {displayName(m.name)}
-                        </h3>
+                  <div key={m.id} onClick={() => openEdit(m)} className="flex items-center gap-3 p-3 bg-[var(--color-surface-card-dark)] rounded-[8px] border border-[var(--color-hairline-on-dark)] cursor-pointer shadow-sm hover:border-[var(--color-primary)]/30 transition">
+                    {/* Left: Avatar (Select Toggle) */}
+                    <button onClick={(e) => { e.stopPropagation(); toggleSelect(m.id); }} className="w-8 h-8 rounded-[6px] shrink-0 flex items-center justify-center border transition-all" style={{ background: selectedIds.has(m.id) ? "var(--color-primary)" : "var(--color-surface-elevated-dark)", color: selectedIds.has(m.id) ? "black" : (m.group === "online" ? "var(--color-accent)" : "var(--color-trading-up)"), borderColor: selectedIds.has(m.id) ? "var(--color-primary)" : "var(--color-hairline-on-dark)" }}>
+                      {selectedIds.has(m.id) ? <Check size={14} strokeWidth={3} /> : (m.group === "online" ? <Wifi size={14} /> : <Banknote size={14} />)}
+                    </button>
+                    
+                    {/* Middle: Details */}
+                    <div className="flex-1 min-w-0 flex flex-col justify-center">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[13px] font-semibold truncate max-w-[140px] ${m.isDeleted ? "text-[var(--color-muted)] line-through" : "text-white"}`}>{displayName(m.name)}</span>
                       </div>
-                      <div className="text-right shrink-0 ml-2">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${m.group === "online" ? "bg-[var(--color-accent)]/15 text-[var(--color-accent)] border-[var(--color-accent)]/20" : "bg-[var(--color-trading-up)]/15 text-[var(--color-trading-up)] border-[var(--color-trading-up)]/20"}`}>
-                          {m.group.toUpperCase()}
-                        </span>
+                      <div className="text-[11px] text-[var(--color-muted)] mt-0.5 truncate">
+                        {m.group === "online" ? "Online Payment" : "Offline Payment"}
                       </div>
                     </div>
                     
-                    <div className="flex justify-end items-center mt-2 border-t border-[var(--color-hairline-on-dark)] pt-3">
-                      <div className="flex gap-1 text-[var(--color-muted)] shrink-0">
-                        <button onClick={() => openEdit(m)} className="w-8 h-8 rounded-[6px] hover:text-[#fcd535] hover:bg-[#fcd535]/10 flex items-center justify-center transition-colors" aria-label="Edit">
-                          <Pencil size={14} />
+                    {/* Right: Badge & Actions */}
+                    <div className="flex flex-col items-end justify-center shrink-0 ml-2">
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-[4px] border uppercase tracking-wider ${m.group === "online" ? "bg-[var(--color-accent)]/15 text-[var(--color-accent)] border-[var(--color-accent)]/20" : "bg-[var(--color-trading-up)]/15 text-[var(--color-trading-up)] border-[var(--color-trading-up)]/20"}`}>
+                        {m.group}
+                      </span>
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <button onClick={(e) => { e.stopPropagation(); openEdit(m); }} className="text-[var(--color-muted)] hover:text-[#fcd535] transition-colors" aria-label="Edit">
+                          <Pencil size={12} />
                         </button>
-                        <button onClick={() => handleDelete(m)} className="w-8 h-8 rounded-[6px] hover:text-[var(--color-trading-down)] hover:bg-[var(--color-trading-down)]/10 flex items-center justify-center transition-colors" aria-label="Delete">
-                          <Trash2 size={14} />
+                        <button onClick={(e) => { e.stopPropagation(); handleDelete(m); }} className="text-[var(--color-muted)] hover:text-[var(--color-trading-down)] transition-colors" aria-label="Delete">
+                          <Trash2 size={12} />
                         </button>
                       </div>
                     </div>
